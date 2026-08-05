@@ -3,6 +3,7 @@ package ui
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -149,6 +150,49 @@ func TestToggleSidebar(t *testing.T) {
 	}
 	if m.View() == "" {
 		t.Error("view should render without sidebar")
+	}
+}
+
+func TestToggleModeSwitchesReaderAndSource(t *testing.T) {
+	m := testModel(t, map[string]string{"a.md": "## Heading\n\nbody text\n"}, "a.md")
+	if m.mode != modeReader {
+		t.Fatal("default mode should be reader")
+	}
+	reader := m.tabs[0].vp.View()
+	if strings.Contains(reader, "## Heading") {
+		t.Errorf("reader mode should not show the ## marker:\n%s", reader)
+	}
+
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'m'}})
+	if m.mode != modeSource {
+		t.Fatal("mode should toggle to source")
+	}
+	source := m.tabs[0].vp.View()
+	if !strings.Contains(source, "## Heading") {
+		t.Errorf("source mode should show the raw syntax:\n%s", source)
+	}
+
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'m'}})
+	if m.mode != modeReader {
+		t.Fatal("mode should toggle back to reader")
+	}
+}
+
+func TestDefaultModeFromConfig(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "a.md")
+	if err := os.WriteFile(path, []byte("# A"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Default()
+	cfg.Theme.Style = "notty"
+	cfg.Theme.DefaultMode = "source"
+	m, err := New(cfg, dir, []string{path})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.mode != modeSource {
+		t.Error("default_mode = source should start in source mode")
 	}
 }
 

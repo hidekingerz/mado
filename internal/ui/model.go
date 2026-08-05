@@ -10,7 +10,11 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
+	"github.com/charmbracelet/glamour/ansi"
+	gstyles "github.com/charmbracelet/glamour/styles"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/reflow/wordwrap"
+	"github.com/muesli/termenv"
 
 	"github.com/hidekingerz/mado/internal/config"
 	"github.com/hidekingerz/mado/internal/filetree"
@@ -23,6 +27,24 @@ const (
 	focusContent
 )
 
+// viewMode selects how a file's content is displayed.
+type viewMode int
+
+const (
+	// modeReader renders markdown as a clean document (no ##/### syntax
+	// markers; heading levels are shown via color and underline).
+	modeReader viewMode = iota
+	// modeSource shows the raw markdown, for checking the syntax itself.
+	modeSource
+)
+
+func (v viewMode) String() string {
+	if v == modeSource {
+		return "SOURCE"
+	}
+	return "READER"
+}
+
 const (
 	tabBarHeight    = 1
 	statusBarHeight = 1
@@ -31,12 +53,13 @@ const (
 
 // tab is one open file.
 type tab struct {
-	path      string
-	title     string
-	raw       string
-	vp        viewport.Model
-	rendered  int // viewport width the content was last rendered at; 0 = never
-	renderErr string
+	path         string
+	title        string
+	raw          string
+	vp           viewport.Model
+	rendered     int // viewport width the content was last rendered at; 0 = never
+	renderedMode viewMode
+	renderErr    string
 }
 
 // tabRegion records where a tab was drawn in the tab bar, for mouse
@@ -61,6 +84,8 @@ type Model struct {
 	treeOff   int
 	sidebar   bool
 	focus     focusArea
+	mode      viewMode
+	style     string // resolved glamour style ("auto" already decided)
 	showHelp  bool
 	statusMsg string
 
@@ -92,6 +117,10 @@ func New(cfg config.Config, rootDir string, initialFiles []string) (Model, error
 		return Model{}, err
 	}
 
+	mode := modeReader
+	if cfg.Theme.DefaultMode == "source" {
+		mode = modeSource
+	}
 	accent := lipgloss.Color(cfg.Theme.AccentColor)
 	m := Model{
 		cfg:      cfg,
@@ -100,6 +129,8 @@ func New(cfg config.Config, rootDir string, initialFiles []string) (Model, error
 		treeOpts: opts,
 		sidebar:  true,
 		focus:    focusSidebar,
+		mode:     mode,
+		style:    resolveStyle(cfg.Theme.Style),
 		styles: styles{
 			accent:    lipgloss.NewStyle().Foreground(accent),
 			border:    lipgloss.NewStyle().Foreground(lipgloss.Color(cfg.Theme.BorderColor)),
@@ -213,6 +244,13 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case key.Matches(msg, k.Reload):
 		m.reload()
+	case key.Matches(msg, k.ToggleMode):
+		if m.mode == modeReader {
+			m.mode = modeSource
+		} else {
+			m.mode = modeReader
+		}
+		m.ensureRendered(m.activeTab())
 	}
 	return m, nil
 }
@@ -384,13 +422,13 @@ func (m *Model) reload() {
 }
 
 // ensureRendered (re-)renders a tab's content at the current viewport
-// width if needed.
+// width and view mode if needed.
 func (m *Model) ensureRendered(t *tab) {
 	if t == nil {
 		return
 	}
 	w := m.contentInnerWidth()
-	if w <= 0 || t.rendered == w {
+	if w <= 0 || (t.rendered == w && t.renderedMode == m.mode) {
 		return
 	}
 	t.vp.Width = w
@@ -398,8 +436,10 @@ func (m *Model) ensureRendered(t *tab) {
 	t.renderErr = ""
 
 	content := t.raw
-	if filetree.IsMarkdown(t.path) {
-		r, err := newRenderer(m.cfg.Theme.Style, w)
+	if m.mode == modeSource || !filetree.IsMarkdown(t.path) {
+		content = wordwrap.String(t.raw, w-2)
+	} else {
+		r, err := newRenderer(m.style, w)
 		if err == nil {
 			var out string
 			out, err = r.Render(t.raw)
@@ -409,26 +449,60 @@ func (m *Model) ensureRendered(t *tab) {
 		}
 		if err != nil {
 			t.renderErr = err.Error()
-			content = t.raw
+			content = wordwrap.String(t.raw, w-2)
 		}
 	}
 	off := t.vp.YOffset
 	t.vp.SetContent(content)
 	t.vp.SetYOffset(off)
 	t.rendered = w
+	t.renderedMode = m.mode
+}
+
+// resolveStyle pins "auto" to dark or light once at startup, so that
+// renders inside the running program never query the terminal.
+func resolveStyle(style string) string {
+	if style == "" || style == "auto" {
+		if termenv.HasDarkBackground() {
+			return "dark"
+		}
+		return "light"
+	}
+	return style
 }
 
 func newRenderer(style string, width int) (*glamour.TermRenderer, error) {
 	opts := []glamour.TermRendererOption{glamour.WithWordWrap(width - 2)}
 	switch {
-	case style == "" || style == "auto":
-		opts = append(opts, glamour.WithAutoStyle())
 	case strings.HasSuffix(style, ".json"):
 		opts = append(opts, glamour.WithStylePath(style))
 	default:
-		opts = append(opts, glamour.WithStandardStyle(style))
+		if base, ok := gstyles.DefaultStyles[style]; ok {
+			sc := readerStyle(*base)
+			opts = append(opts, glamour.WithStyles(sc))
+		} else {
+			opts = append(opts, glamour.WithStandardStyle(style))
+		}
 	}
 	return glamour.NewTermRenderer(opts...)
+}
+
+// readerStyle adapts a glamour style for reading: the literal ##/###
+// heading markers are dropped, and heading levels are distinguished by
+// underline (h2) and italics (h4-h6) instead.
+func readerStyle(base ansi.StyleConfig) ansi.StyleConfig {
+	sc := base
+	on := true
+	sc.H2.Prefix = ""
+	sc.H2.Underline = &on
+	sc.H3.Prefix = ""
+	sc.H4.Prefix = ""
+	sc.H4.Italic = &on
+	sc.H5.Prefix = ""
+	sc.H5.Italic = &on
+	sc.H6.Prefix = ""
+	sc.H6.Italic = &on
+	return sc
 }
 
 // ── tree cursor / scrolling ─────────────────────────────────────────

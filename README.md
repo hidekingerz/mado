@@ -9,6 +9,7 @@
 ## Features
 
 - **Markdown rendering** in the terminal via Glamour
+- **Reader / source modes** — toggle between a clean document view and the raw markdown syntax with one key
 - **Sidebar file tree** rooted at the current directory (lazy-loaded, collapsible)
 - **Multiple open files** — each file opens in its own tab
 - **Mouse support** — click files to open, click tabs to switch, click `✕` to close, scroll wheel in both panes
@@ -40,6 +41,20 @@ mado -style dracula   # override the markdown theme
 mado -config my.toml  # use an alternate config file
 ```
 
+### View modes
+
+There are two ways to look at a file, switched with `m`:
+
+- **Reader** (default) — markdown rendered as a clean document. Heading
+  markers (`##`) are hidden; levels are distinguished by color,
+  underline, and italics.
+- **Source** — the raw markdown text, for checking the syntax itself.
+
+![reader and source modes](docs/assets/modes.png)
+
+The startup mode can be set with `default_mode = "source"` in the
+config.
+
 ### Default key bindings
 
 | Key                | Action                          |
@@ -54,6 +69,7 @@ mado -config my.toml  # use an alternate config file
 | `ctrl+d`/`ctrl+u`  | half page down / up             |
 | `g`/`G`            | go to top / bottom              |
 | `r`/`F5`           | reload tree and current file    |
+| `m`                | toggle reader / source mode     |
 | `?`                | help                            |
 | `q`/`ctrl+c`       | quit                            |
 
