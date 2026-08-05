@@ -19,6 +19,10 @@
 
 ## Install
 
+Download a prebuilt binary for Linux, macOS, or Windows from the
+[releases page](https://github.com/hidekingerz/mado/releases), or
+install with Go:
+
 ```sh
 go install github.com/hidekingerz/mado@latest
 ```
@@ -39,6 +43,7 @@ mado docs/            # root the sidebar at docs/
 mado README.md a.md   # open files in tabs immediately
 mado -style dracula   # override the markdown theme
 mado -config my.toml  # use an alternate config file
+mado -version         # print the version
 ```
 
 ### View modes

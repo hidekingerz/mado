@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"runtime/debug"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -13,9 +14,27 @@ import (
 	"github.com/hidekingerz/mado/internal/ui"
 )
 
+// version is set at release time by GoReleaser via ldflags. For builds
+// made with `go install`, the module version from build info is used
+// instead.
+var version = ""
+
+func versionString() string {
+	if version != "" {
+		return version
+	}
+	if info, ok := debug.ReadBuildInfo(); ok {
+		if v := info.Main.Version; v != "" && v != "(devel)" {
+			return v
+		}
+	}
+	return "devel"
+}
+
 func main() {
 	configPath := flag.String("config", config.DefaultPath(), "path to config.toml")
 	style := flag.String("style", "", "glamour style (overrides config): auto, dark, light, dracula, … or a style JSON path")
+	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "usage: mado [flags] [dir | file ...]\n\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "Opens a markdown viewer rooted at dir (default: current directory).\n")
@@ -23,6 +42,11 @@ func main() {
 		flag.PrintDefaults()
 	}
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Println("mado " + versionString())
+		return
+	}
 
 	cfg, err := config.Load(*configPath)
 	if err != nil {
