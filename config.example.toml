@@ -9,6 +9,9 @@
 # Glamour markdown style: "auto", "dark", "light", "dracula", "notty",
 # "ascii" — or a path to a custom glamour style JSON file.
 style = "auto"
+# View mode files open in: "reader" renders markdown as a clean document
+# (no ## markers), "source" shows the raw markdown syntax.
+default_mode = "reader"
 # UI colors (hex or ANSI 0-255).
 accent_color = "#7C6AEF"   # focused borders, active tab, selection
 border_color = "#585B70"   # unfocused pane borders
@@ -40,4 +43,5 @@ half_page_up = ["ctrl+u", "pgup"]
 top = ["g", "home"]
 bottom = ["G", "end"]
 reload = ["r", "f5"]
+toggle_mode = ["m"]          # switch reader / source view
 help = ["?"]

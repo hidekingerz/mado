@@ -21,6 +21,7 @@ type keyMap struct {
 	Top           key.Binding
 	Bottom        key.Binding
 	Reload        key.Binding
+	ToggleMode    key.Binding
 	Help          key.Binding
 }
 
@@ -43,6 +44,7 @@ func newKeyMap(k config.Keys) keyMap {
 		Top:           bind(k.Top, "go to top"),
 		Bottom:        bind(k.Bottom, "go to bottom"),
 		Reload:        bind(k.Reload, "reload"),
+		ToggleMode:    bind(k.ToggleMode, "reader/source mode"),
 		Help:          bind(k.Help, "toggle help"),
 	}
 }

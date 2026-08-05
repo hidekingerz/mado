@@ -19,7 +19,10 @@ type Config struct {
 type Theme struct {
 	// Style is a glamour style: "auto", "dark", "light", "dracula",
 	// "notty", "ascii", or a path to a glamour style JSON file.
-	Style       string `toml:"style"`
+	Style string `toml:"style"`
+	// DefaultMode is the view mode files open in: "reader" renders
+	// markdown as a clean document, "source" shows the raw syntax.
+	DefaultMode string `toml:"default_mode"`
 	AccentColor string `toml:"accent_color"`
 	BorderColor string `toml:"border_color"`
 	SelectionFg string `toml:"selection_fg"`
@@ -52,6 +55,7 @@ type Keys struct {
 	Top           []string `toml:"top"`
 	Bottom        []string `toml:"bottom"`
 	Reload        []string `toml:"reload"`
+	ToggleMode    []string `toml:"toggle_mode"`
 	Help          []string `toml:"help"`
 }
 
@@ -60,6 +64,7 @@ func Default() Config {
 	return Config{
 		Theme: Theme{
 			Style:       "auto",
+			DefaultMode: "reader",
 			AccentColor: "#7C6AEF",
 			BorderColor: "#585B70",
 			SelectionFg: "#1E1E2E",
@@ -87,6 +92,7 @@ func Default() Config {
 			Top:           []string{"g", "home"},
 			Bottom:        []string{"G", "end"},
 			Reload:        []string{"r", "f5"},
+			ToggleMode:    []string{"m"},
 			Help:          []string{"?"},
 		},
 	}
@@ -131,6 +137,7 @@ func Load(path string) (Config, error) {
 
 func merge(dst *Config, src Config) {
 	mergeStr(&dst.Theme.Style, src.Theme.Style)
+	mergeStr(&dst.Theme.DefaultMode, src.Theme.DefaultMode)
 	mergeStr(&dst.Theme.AccentColor, src.Theme.AccentColor)
 	mergeStr(&dst.Theme.BorderColor, src.Theme.BorderColor)
 	mergeStr(&dst.Theme.SelectionFg, src.Theme.SelectionFg)
@@ -158,6 +165,7 @@ func merge(dst *Config, src Config) {
 	mergeKeys(&dst.Keys.Top, src.Keys.Top)
 	mergeKeys(&dst.Keys.Bottom, src.Keys.Bottom)
 	mergeKeys(&dst.Keys.Reload, src.Keys.Reload)
+	mergeKeys(&dst.Keys.ToggleMode, src.Keys.ToggleMode)
 	mergeKeys(&dst.Keys.Help, src.Keys.Help)
 }
 

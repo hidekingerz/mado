@@ -173,6 +173,7 @@ func (m Model) renderHelp(w, h int) string {
 		{k.Top.Help().Key, k.Top.Help().Desc},
 		{k.Bottom.Help().Key, k.Bottom.Help().Desc},
 		{k.Reload.Help().Key, k.Reload.Help().Desc},
+		{k.ToggleMode.Help().Key, k.ToggleMode.Help().Desc},
 		{k.Help.Help().Key, k.Help.Help().Desc},
 		{k.Quit.Help().Key, k.Quit.Help().Desc},
 	}
@@ -198,7 +199,7 @@ func (m Model) renderHelp(w, h int) string {
 func (m Model) renderStatusBar() string {
 	left := " "
 	if t := m.activeTab(); t != nil {
-		left += t.path
+		left += "[" + m.mode.String() + "]  " + t.path
 		left += fmt.Sprintf("  %3.0f%%", t.vp.ScrollPercent()*100)
 		if t.renderErr != "" {
 			left += "  [render error: " + t.renderErr + "]"
