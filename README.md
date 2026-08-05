@@ -4,19 +4,7 @@
 [Bubble Tea](https://github.com/charmbracelet/bubbletea) and
 [Glamour](https://github.com/charmbracelet/glamour).
 
-```
- README.md ✕  guide.md ✕
-╭───────────────────╮╭─────────────────────────────────────────╮
-│▾ docs             ││                                         │
-│  • guide.md       ││   Hello mado                            │
-│• README.md        ││                                         │
-│                   ││  This is bold and italic.               │
-│                   ││                                         │
-│                   ││  • item one                             │
-│                   ││  • item two                             │
-╰───────────────────╯╰─────────────────────────────────────────╯
- /home/you/project  42%              ? help │ q/ctrl+c quit
-```
+![mado screenshot](docs/assets/screenshot.png)
 
 ## Features
 
