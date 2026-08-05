@@ -1,0 +1,43 @@
+# mado configuration
+# Place this file at: ~/.config/mado/config.toml
+# (or $XDG_CONFIG_HOME/mado/config.toml)
+#
+# Every table and key is optional — unset values fall back to the
+# built-in defaults shown below.
+
+[theme]
+# Glamour markdown style: "auto", "dark", "light", "dracula", "notty",
+# "ascii" — or a path to a custom glamour style JSON file.
+style = "auto"
+# UI colors (hex or ANSI 0-255).
+accent_color = "#7C6AEF"   # focused borders, active tab, selection
+border_color = "#585B70"   # unfocused pane borders
+selection_fg = "#1E1E2E"
+selection_bg = "#7C6AEF"
+status_fg = "#CDD6F4"
+status_bg = "#313244"
+
+[sidebar]
+width = 32            # columns (clamped to half the terminal width)
+show_all_files = false # false = only markdown files are listed
+show_hidden = false    # show dotfiles / dot-directories
+
+[keys]
+# Each action takes a list of keys in bubbletea syntax:
+# single characters ("q"), named keys ("enter", "esc", "up", "pgdown",
+# "home", "f5"), and modifiers ("ctrl+w", "shift+tab").
+quit = ["q", "ctrl+c"]
+up = ["up", "k"]
+down = ["down", "j"]
+open = ["enter", "l"]        # open file / expand-collapse directory
+back = ["esc", "h"]          # focus the sidebar
+close_tab = ["x", "ctrl+w"]
+next_tab = ["tab", "]"]
+prev_tab = ["shift+tab", "["]
+toggle_sidebar = ["b", "ctrl+b"]
+half_page_down = ["ctrl+d", "pgdown"]
+half_page_up = ["ctrl+u", "pgup"]
+top = ["g", "home"]
+bottom = ["G", "end"]
+reload = ["r", "f5"]
+help = ["?"]
