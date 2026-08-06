@@ -63,3 +63,21 @@ func TestLoadBadTOML(t *testing.T) {
 		t.Error("expected error for invalid TOML")
 	}
 }
+
+func TestSourceStyleKey(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+	if err := os.WriteFile(path, []byte("[theme]\nsource_style = \"monokai\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Theme.SourceStyle != "monokai" {
+		t.Errorf("SourceStyle = %q, want monokai", cfg.Theme.SourceStyle)
+	}
+	if Default().Theme.SourceStyle != "" {
+		t.Errorf("default SourceStyle should be empty (= automatic)")
+	}
+}
