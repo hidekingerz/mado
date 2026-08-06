@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/hidekingerz/mado/internal/config"
 )
@@ -282,5 +283,32 @@ func TestViewRenders(t *testing.T) {
 	}
 	if m.View() == "" {
 		t.Fatal("empty help view")
+	}
+}
+
+func TestSidebarMarksDirectories(t *testing.T) {
+	m := testModel(t, map[string]string{"docs/a.md": "# A", "b.md": "# B"})
+	view := m.View()
+	if !strings.Contains(view, "docs/") {
+		t.Error("directory should render with a trailing slash")
+	}
+	if strings.Contains(view, "b.md/") {
+		t.Error("file must not have a trailing slash")
+	}
+	if !m.styles.dir.GetBold() {
+		t.Error("dir style should be bold")
+	}
+	if fg, ok := m.styles.dir.GetForeground().(lipgloss.Color); !ok || string(fg) != "#89B4FA" {
+		t.Errorf("dir style foreground = %v, want #89B4FA", m.styles.dir.GetForeground())
+	}
+}
+
+func TestUnfocusedCursorRowStyle(t *testing.T) {
+	m := testModel(t, map[string]string{"a.md": "# A"})
+	if fg, ok := m.styles.cursor.GetForeground().(lipgloss.Color); !ok || string(fg) != "#FFFFFF" {
+		t.Errorf("cursor style foreground = %v, want #FFFFFF (file color)", m.styles.cursor.GetForeground())
+	}
+	if !m.styles.cursor.GetBold() {
+		t.Error("unfocused cursor row style should be bold")
 	}
 }

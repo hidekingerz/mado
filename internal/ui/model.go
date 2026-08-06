@@ -3,6 +3,7 @@
 package ui
 
 import (
+	"fmt"
 	"os"
 	"strings"
 
@@ -56,10 +57,23 @@ type tab struct {
 	path         string
 	title        string
 	raw          string
+	binary       bool // content is binary; raw holds a placeholder, not file bytes
 	vp           viewport.Model
 	rendered     int // viewport width the content was last rendered at; 0 = never
 	renderedMode viewMode
 	renderErr    string
+}
+
+// setContent stores file data on the tab. Binary data is replaced with a
+// placeholder so raw control bytes never reach the terminal.
+func (t *tab) setContent(data []byte) {
+	if looksBinary(data) {
+		t.binary = true
+		t.raw = fmt.Sprintf("%s\n\nbinary file (%s) — not displayed", t.title, humanSize(len(data)))
+		return
+	}
+	t.binary = false
+	t.raw = string(data)
 }
 
 // tabRegion records where a tab was drawn in the tab bar, for mouse
@@ -102,6 +116,9 @@ type styles struct {
 	accent      lipgloss.Style
 	border      lipgloss.Style
 	selection   lipgloss.Style
+	cursor      lipgloss.Style
+	dir         lipgloss.Style
+	file        lipgloss.Style
 	dimmed      lipgloss.Style
 	status      lipgloss.Style
 	tabActive   lipgloss.Style
@@ -140,6 +157,9 @@ func New(cfg config.Config, rootDir string, initialFiles []string) (Model, error
 			accent:    lipgloss.NewStyle().Foreground(accent),
 			border:    lipgloss.NewStyle().Foreground(lipgloss.Color(cfg.Theme.BorderColor)),
 			selection: lipgloss.NewStyle().Foreground(lipgloss.Color(cfg.Theme.SelectionFg)).Background(lipgloss.Color(cfg.Theme.SelectionBg)).Bold(true),
+			cursor:    lipgloss.NewStyle().Foreground(lipgloss.Color(cfg.Theme.FileColor)).Bold(true),
+			dir:       lipgloss.NewStyle().Foreground(lipgloss.Color(cfg.Theme.DirColor)).Bold(true),
+			file:      lipgloss.NewStyle().Foreground(lipgloss.Color(cfg.Theme.FileColor)),
 			dimmed:    lipgloss.NewStyle().Foreground(lipgloss.Color("245")),
 			status:    lipgloss.NewStyle().Foreground(lipgloss.Color(cfg.Theme.StatusFg)).Background(lipgloss.Color(cfg.Theme.StatusBg)),
 			tabActive: lipgloss.NewStyle().Foreground(lipgloss.Color(cfg.Theme.SelectionFg)).Background(accent).Bold(true),
@@ -369,8 +389,8 @@ func (m *Model) openFile(path string) {
 	t := &tab{
 		path:  path,
 		title: baseName(path),
-		raw:   string(data),
 	}
+	t.setContent(data)
 	t.vp = viewport.New(m.contentInnerWidth(), m.contentInnerHeight())
 	m.tabs = append(m.tabs, t)
 	m.active = len(m.tabs) - 1
@@ -425,7 +445,7 @@ func (m *Model) reload() {
 	m.reloadTree()
 	if t := m.activeTab(); t != nil {
 		if data, err := os.ReadFile(t.path); err == nil {
-			t.raw = string(data)
+			t.setContent(data)
 			t.rendered = 0
 			m.ensureRendered(t)
 		} else {
@@ -449,7 +469,9 @@ func (m *Model) ensureRendered(t *tab) {
 	t.renderErr = ""
 
 	content := t.raw
-	if m.mode == modeSource || !filetree.IsMarkdown(t.path) {
+	if t.binary {
+		content = lipgloss.Place(w, m.contentInnerHeight(), lipgloss.Center, lipgloss.Center, t.raw)
+	} else if m.mode == modeSource || !filetree.IsMarkdown(t.path) {
 		if hl, err := highlightSource(t.raw, t.path, m.sourceStyle, m.formatter); err == nil {
 			content = hl
 		}

@@ -96,7 +96,11 @@ func (m Model) renderSidebar() string {
 				icon = "▸"
 			}
 		}
-		text := strings.Repeat("  ", it.Depth) + icon + " " + it.Node.Name
+		name := it.Node.Name
+		if it.Node.IsDir {
+			name += "/"
+		}
+		text := strings.Repeat("  ", it.Depth) + icon + " " + name
 		text = truncate(text, innerW)
 		text += strings.Repeat(" ", innerW-lipgloss.Width(text))
 
@@ -104,9 +108,13 @@ func (m Model) renderSidebar() string {
 		case idx == m.cursor && m.focus == focusSidebar:
 			text = m.styles.selection.Render(text)
 		case idx == m.cursor:
-			text = m.styles.accent.Render(text)
+			text = m.styles.cursor.Render(text)
 		case it.Node.IsDir:
-			text = lipgloss.NewStyle().Bold(true).Render(text)
+			text = m.styles.dir.Render(text)
+		case hasBinaryExt(it.Node.Path):
+			text = m.styles.dimmed.Render(text)
+		default:
+			text = m.styles.file.Render(text)
 		}
 		rows = append(rows, text)
 	}
