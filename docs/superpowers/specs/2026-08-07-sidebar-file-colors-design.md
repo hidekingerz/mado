@@ -16,8 +16,11 @@ identical in the sidebar.
 - Files with a well-known binary extension render dimmed (the existing
   `styles.dimmed`, ANSI 245), signaling that opening them shows only a
   placeholder.
-- Directory rows and cursor-row priority are unchanged:
-  selection > cursor accent > dir > binary-dimmed > file-white.
+- Directory rows are unchanged. Priority:
+  selection > cursor row > dir > binary-dimmed > file-white.
+- The unfocused cursor row (the opened file, focus on content) renders
+  white + bold (`file_color`, bold) instead of the former accent
+  purple, keeping the sidebar palette to blue/white/dim.
 
 Extension-based detection is used because the sidebar cannot afford to
 read file contents. It is display-only: opening a file still uses the

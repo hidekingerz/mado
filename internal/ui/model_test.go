@@ -302,3 +302,13 @@ func TestSidebarMarksDirectories(t *testing.T) {
 		t.Errorf("dir style foreground = %v, want #89B4FA", m.styles.dir.GetForeground())
 	}
 }
+
+func TestUnfocusedCursorRowStyle(t *testing.T) {
+	m := testModel(t, map[string]string{"a.md": "# A"})
+	if fg, ok := m.styles.cursor.GetForeground().(lipgloss.Color); !ok || string(fg) != "#FFFFFF" {
+		t.Errorf("cursor style foreground = %v, want #FFFFFF (file color)", m.styles.cursor.GetForeground())
+	}
+	if !m.styles.cursor.GetBold() {
+		t.Error("unfocused cursor row style should be bold")
+	}
+}

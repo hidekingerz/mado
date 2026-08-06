@@ -108,7 +108,7 @@ func (m Model) renderSidebar() string {
 		case idx == m.cursor && m.focus == focusSidebar:
 			text = m.styles.selection.Render(text)
 		case idx == m.cursor:
-			text = m.styles.accent.Render(text)
+			text = m.styles.cursor.Render(text)
 		case it.Node.IsDir:
 			text = m.styles.dir.Render(text)
 		case hasBinaryExt(it.Node.Path):
