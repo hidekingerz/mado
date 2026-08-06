@@ -3,6 +3,7 @@
 package ui
 
 import (
+	"fmt"
 	"os"
 	"strings"
 
@@ -56,10 +57,23 @@ type tab struct {
 	path         string
 	title        string
 	raw          string
+	binary       bool // content is binary; raw holds a placeholder, not file bytes
 	vp           viewport.Model
 	rendered     int // viewport width the content was last rendered at; 0 = never
 	renderedMode viewMode
 	renderErr    string
+}
+
+// setContent stores file data on the tab. Binary data is replaced with a
+// placeholder so raw control bytes never reach the terminal.
+func (t *tab) setContent(data []byte) {
+	if looksBinary(data) {
+		t.binary = true
+		t.raw = fmt.Sprintf("%s\n\nbinary file (%s) — not displayed", t.title, humanSize(len(data)))
+		return
+	}
+	t.binary = false
+	t.raw = string(data)
 }
 
 // tabRegion records where a tab was drawn in the tab bar, for mouse
@@ -371,8 +385,8 @@ func (m *Model) openFile(path string) {
 	t := &tab{
 		path:  path,
 		title: baseName(path),
-		raw:   string(data),
 	}
+	t.setContent(data)
 	t.vp = viewport.New(m.contentInnerWidth(), m.contentInnerHeight())
 	m.tabs = append(m.tabs, t)
 	m.active = len(m.tabs) - 1
@@ -427,7 +441,7 @@ func (m *Model) reload() {
 	m.reloadTree()
 	if t := m.activeTab(); t != nil {
 		if data, err := os.ReadFile(t.path); err == nil {
-			t.raw = string(data)
+			t.setContent(data)
 			t.rendered = 0
 			m.ensureRendered(t)
 		} else {
@@ -451,7 +465,9 @@ func (m *Model) ensureRendered(t *tab) {
 	t.renderErr = ""
 
 	content := t.raw
-	if m.mode == modeSource || !filetree.IsMarkdown(t.path) {
+	if t.binary {
+		content = lipgloss.Place(w, m.contentInnerHeight(), lipgloss.Center, lipgloss.Center, t.raw)
+	} else if m.mode == modeSource || !filetree.IsMarkdown(t.path) {
 		if hl, err := highlightSource(t.raw, t.path, m.sourceStyle, m.formatter); err == nil {
 			content = hl
 		}
