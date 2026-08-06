@@ -47,4 +47,5 @@ top = ["g", "home"]
 bottom = ["G", "end"]
 reload = ["r", "f5"]
 toggle_mode = ["m"]          # switch reader / source view
+toggle_all_files = ["a"]     # show all files / markdown only in sidebar
 help = ["?"]

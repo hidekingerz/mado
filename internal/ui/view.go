@@ -174,6 +174,7 @@ func (m Model) renderHelp(w, h int) string {
 		{k.Bottom.Help().Key, k.Bottom.Help().Desc},
 		{k.Reload.Help().Key, k.Reload.Help().Desc},
 		{k.ToggleMode.Help().Key, k.ToggleMode.Help().Desc},
+		{k.ToggleAllFiles.Help().Key, k.ToggleAllFiles.Help().Desc},
 		{k.Help.Help().Key, k.Help.Help().Desc},
 		{k.Quit.Help().Key, k.Quit.Help().Desc},
 	}

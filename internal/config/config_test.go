@@ -81,3 +81,21 @@ func TestSourceStyleKey(t *testing.T) {
 		t.Errorf("default SourceStyle should be empty (= automatic)")
 	}
 }
+
+func TestToggleAllFilesKey(t *testing.T) {
+	if got := Default().Keys.ToggleAllFiles; len(got) != 1 || got[0] != "a" {
+		t.Errorf("default ToggleAllFiles = %v, want [a]", got)
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+	if err := os.WriteFile(path, []byte("[keys]\ntoggle_all_files = [\"F\"]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Keys.ToggleAllFiles) != 1 || cfg.Keys.ToggleAllFiles[0] != "F" {
+		t.Errorf("ToggleAllFiles = %v, want [F]", cfg.Keys.ToggleAllFiles)
+	}
+}

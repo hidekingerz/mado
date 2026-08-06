@@ -225,6 +225,51 @@ func TestSourceModeNottyStaysPlain(t *testing.T) {
 	}
 }
 
+func TestToggleAllFilesShowsNonMarkdown(t *testing.T) {
+	m := testModel(t, map[string]string{"a.md": "# A", "main.go": "package main\n"})
+	has := func(name string) bool {
+		for _, it := range m.items {
+			if it.Node.Name == name {
+				return true
+			}
+		}
+		return false
+	}
+	if has("main.go") {
+		t.Fatal("main.go should be hidden by default")
+	}
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	if !has("main.go") {
+		t.Fatal("main.go should appear after toggle")
+	}
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	if has("main.go") {
+		t.Fatal("main.go should be hidden again after second toggle")
+	}
+}
+
+func TestToggleAllFilesKeepsExpansion(t *testing.T) {
+	m := testModel(t, map[string]string{"docs/a.md": "# A", "b.md": "# B", "main.go": "package main\n"})
+	// Directories sort first: cursor 0 is docs. Enter expands it.
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	var docsExpanded, hasGo bool
+	for _, it := range m.items {
+		if it.Node.Name == "docs" && it.Node.Expanded {
+			docsExpanded = true
+		}
+		if it.Node.Name == "main.go" {
+			hasGo = true
+		}
+	}
+	if !docsExpanded {
+		t.Error("docs should stay expanded across the toggle")
+	}
+	if !hasGo {
+		t.Error("main.go should be visible after the toggle")
+	}
+}
+
 func TestViewRenders(t *testing.T) {
 	m := testModel(t, map[string]string{"a.md": "# A"}, "a.md")
 	v := m.View()
