@@ -9,13 +9,13 @@
 ## Features
 
 - **Markdown rendering** in the terminal via Glamour
-- **Reader / source modes** — toggle between a clean document view and the raw markdown syntax with one key
+- **Reader / source modes** — toggle between a clean document view and syntax-highlighted raw markdown with one key
 - **Sidebar file tree** rooted at the current directory (lazy-loaded, collapsible)
 - **Multiple open files** — each file opens in its own tab
 - **Mouse support** — click files to open, click tabs to switch, click `✕` to close, scroll wheel in both panes
 - **TOML configuration** — `~/.config/mado/config.toml`
 - **Configurable keyboard shortcuts** — every action can be rebound
-- **Theme customization** — Glamour styles (`auto`, `dark`, `light`, `dracula`, or your own style JSON) plus UI colors
+- **Theme customization** — Glamour styles (`auto`, `dark`, `light`, `dracula`, or your own style JSON) plus UI colors and a `source_style` for source-mode highlighting
 
 ## Install
 

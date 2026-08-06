@@ -12,6 +12,9 @@ style = "auto"
 # View mode files open in: "reader" renders markdown as a clean document
 # (no ## markers), "source" shows the raw markdown syntax.
 default_mode = "reader"
+# Chroma style for source mode and non-markdown files ("monokai",
+# "github", "dracula", …). Unset = chosen automatically from `style`.
+# source_style = "monokai"
 # UI colors (hex or ANSI 0-255).
 accent_color = "#7C6AEF"   # focused borders, active tab, selection
 border_color = "#585B70"   # unfocused pane borders

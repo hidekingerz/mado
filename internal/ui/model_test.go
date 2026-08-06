@@ -196,6 +196,35 @@ func TestDefaultModeFromConfig(t *testing.T) {
 	}
 }
 
+func TestSourceModeHighlights(t *testing.T) {
+	m := testModel(t, map[string]string{"doc.md": "# Title\n\nsome text\n"}, "doc.md")
+	// testModel uses style "notty", which disables highlighting; force it
+	// on directly (same package) to stay independent of the test terminal.
+	m.sourceStyle = "catppuccin-mocha"
+	m.formatter = "terminal16m"
+
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'m'}}) // reader → source
+	if m.mode != modeSource {
+		t.Fatalf("mode = %v, want source", m.mode)
+	}
+	if view := m.tabs[0].vp.View(); !strings.Contains(view, "\x1b[") {
+		t.Error("source mode content should contain ANSI escapes")
+	}
+
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'m'}}) // back to reader: must not panic
+	if m.mode != modeReader {
+		t.Fatalf("mode = %v, want reader", m.mode)
+	}
+}
+
+func TestSourceModeNottyStaysPlain(t *testing.T) {
+	m := testModel(t, map[string]string{"doc.md": "# Title\n"}, "doc.md")
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'m'}})
+	if view := m.tabs[0].vp.View(); strings.Contains(view, "\x1b[38") {
+		t.Error("notty style must not colorize source mode")
+	}
+}
+
 func TestViewRenders(t *testing.T) {
 	m := testModel(t, map[string]string{"a.md": "# A"}, "a.md")
 	v := m.View()

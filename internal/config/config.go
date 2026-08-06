@@ -23,6 +23,10 @@ type Theme struct {
 	// DefaultMode is the view mode files open in: "reader" renders
 	// markdown as a clean document, "source" shows the raw syntax.
 	DefaultMode string `toml:"default_mode"`
+	// SourceStyle is the chroma style used to highlight source-mode
+	// text and non-markdown files (e.g. "monokai", "github").
+	// Empty = pick automatically from Style.
+	SourceStyle string `toml:"source_style"`
 	AccentColor string `toml:"accent_color"`
 	BorderColor string `toml:"border_color"`
 	SelectionFg string `toml:"selection_fg"`
@@ -138,6 +142,7 @@ func Load(path string) (Config, error) {
 func merge(dst *Config, src Config) {
 	mergeStr(&dst.Theme.Style, src.Theme.Style)
 	mergeStr(&dst.Theme.DefaultMode, src.Theme.DefaultMode)
+	mergeStr(&dst.Theme.SourceStyle, src.Theme.SourceStyle)
 	mergeStr(&dst.Theme.AccentColor, src.Theme.AccentColor)
 	mergeStr(&dst.Theme.BorderColor, src.Theme.BorderColor)
 	mergeStr(&dst.Theme.SelectionFg, src.Theme.SelectionFg)
