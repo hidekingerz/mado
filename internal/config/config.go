@@ -45,22 +45,23 @@ type Sidebar struct {
 // Keys maps actions to one or more key names (bubbletea key syntax,
 // e.g. "ctrl+w", "shift+tab", "enter", "q").
 type Keys struct {
-	Quit          []string `toml:"quit"`
-	Up            []string `toml:"up"`
-	Down          []string `toml:"down"`
-	Open          []string `toml:"open"`
-	Back          []string `toml:"back"`
-	CloseTab      []string `toml:"close_tab"`
-	NextTab       []string `toml:"next_tab"`
-	PrevTab       []string `toml:"prev_tab"`
-	ToggleSidebar []string `toml:"toggle_sidebar"`
-	HalfPageDown  []string `toml:"half_page_down"`
-	HalfPageUp    []string `toml:"half_page_up"`
-	Top           []string `toml:"top"`
-	Bottom        []string `toml:"bottom"`
-	Reload        []string `toml:"reload"`
-	ToggleMode    []string `toml:"toggle_mode"`
-	Help          []string `toml:"help"`
+	Quit           []string `toml:"quit"`
+	Up             []string `toml:"up"`
+	Down           []string `toml:"down"`
+	Open           []string `toml:"open"`
+	Back           []string `toml:"back"`
+	CloseTab       []string `toml:"close_tab"`
+	NextTab        []string `toml:"next_tab"`
+	PrevTab        []string `toml:"prev_tab"`
+	ToggleSidebar  []string `toml:"toggle_sidebar"`
+	HalfPageDown   []string `toml:"half_page_down"`
+	HalfPageUp     []string `toml:"half_page_up"`
+	Top            []string `toml:"top"`
+	Bottom         []string `toml:"bottom"`
+	Reload         []string `toml:"reload"`
+	ToggleMode     []string `toml:"toggle_mode"`
+	ToggleAllFiles []string `toml:"toggle_all_files"`
+	Help           []string `toml:"help"`
 }
 
 // Default returns the built-in configuration.
@@ -82,22 +83,23 @@ func Default() Config {
 			ShowHidden:   false,
 		},
 		Keys: Keys{
-			Quit:          []string{"q", "ctrl+c"},
-			Up:            []string{"up", "k"},
-			Down:          []string{"down", "j"},
-			Open:          []string{"enter", "l"},
-			Back:          []string{"esc", "h"},
-			CloseTab:      []string{"x", "ctrl+w"},
-			NextTab:       []string{"tab", "]"},
-			PrevTab:       []string{"shift+tab", "["},
-			ToggleSidebar: []string{"b", "ctrl+b"},
-			HalfPageDown:  []string{"ctrl+d", "pgdown"},
-			HalfPageUp:    []string{"ctrl+u", "pgup"},
-			Top:           []string{"g", "home"},
-			Bottom:        []string{"G", "end"},
-			Reload:        []string{"r", "f5"},
-			ToggleMode:    []string{"m"},
-			Help:          []string{"?"},
+			Quit:           []string{"q", "ctrl+c"},
+			Up:             []string{"up", "k"},
+			Down:           []string{"down", "j"},
+			Open:           []string{"enter", "l"},
+			Back:           []string{"esc", "h"},
+			CloseTab:       []string{"x", "ctrl+w"},
+			NextTab:        []string{"tab", "]"},
+			PrevTab:        []string{"shift+tab", "["},
+			ToggleSidebar:  []string{"b", "ctrl+b"},
+			HalfPageDown:   []string{"ctrl+d", "pgdown"},
+			HalfPageUp:     []string{"ctrl+u", "pgup"},
+			Top:            []string{"g", "home"},
+			Bottom:         []string{"G", "end"},
+			Reload:         []string{"r", "f5"},
+			ToggleMode:     []string{"m"},
+			ToggleAllFiles: []string{"a"},
+			Help:           []string{"?"},
 		},
 	}
 }
@@ -171,6 +173,7 @@ func merge(dst *Config, src Config) {
 	mergeKeys(&dst.Keys.Bottom, src.Keys.Bottom)
 	mergeKeys(&dst.Keys.Reload, src.Keys.Reload)
 	mergeKeys(&dst.Keys.ToggleMode, src.Keys.ToggleMode)
+	mergeKeys(&dst.Keys.ToggleAllFiles, src.Keys.ToggleAllFiles)
 	mergeKeys(&dst.Keys.Help, src.Keys.Help)
 }
 
