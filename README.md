@@ -97,6 +97,7 @@ for the full annotated reference.
 style = "dracula"          # glamour style name or path to a style JSON
 accent_color = "#7C6AEF"
 dir_color = "#89B4FA"      # sidebar directory names
+file_color = "#FFFFFF"     # sidebar text files (known binaries are dimmed)
 
 [sidebar]
 width = 32

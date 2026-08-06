@@ -111,6 +111,10 @@ func (m Model) renderSidebar() string {
 			text = m.styles.accent.Render(text)
 		case it.Node.IsDir:
 			text = m.styles.dir.Render(text)
+		case hasBinaryExt(it.Node.Path):
+			text = m.styles.dimmed.Render(text)
+		default:
+			text = m.styles.file.Render(text)
 		}
 		rows = append(rows, text)
 	}

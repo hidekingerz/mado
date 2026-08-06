@@ -117,3 +117,21 @@ func TestDirColorKey(t *testing.T) {
 		t.Errorf("DirColor = %q, want #FF0000", cfg.Theme.DirColor)
 	}
 }
+
+func TestFileColorKey(t *testing.T) {
+	if got := Default().Theme.FileColor; got != "#FFFFFF" {
+		t.Errorf("default FileColor = %q, want #FFFFFF", got)
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+	if err := os.WriteFile(path, []byte("[theme]\nfile_color = \"#AABBCC\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Theme.FileColor != "#AABBCC" {
+		t.Errorf("FileColor = %q, want #AABBCC", cfg.Theme.FileColor)
+	}
+}

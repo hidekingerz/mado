@@ -19,6 +19,8 @@ default_mode = "reader"
 accent_color = "#7C6AEF"   # focused borders, active tab, selection
 border_color = "#585B70"   # unfocused pane borders
 dir_color = "#89B4FA"      # directory names in the sidebar
+file_color = "#FFFFFF"     # openable (text) files in the sidebar; known
+                           # binary files (png, zip, …) are dimmed instead
 selection_fg = "#1E1E2E"
 selection_bg = "#7C6AEF"
 status_fg = "#CDD6F4"

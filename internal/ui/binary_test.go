@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 func TestLooksBinary(t *testing.T) {
@@ -40,5 +41,30 @@ func TestOpenBinaryFileShowsPlaceholder(t *testing.T) {
 	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
 	if view := m.tabs[0].vp.View(); strings.Contains(view, "\x00") {
 		t.Error("reload must keep the placeholder for binary files")
+	}
+}
+
+func TestHasBinaryExt(t *testing.T) {
+	binary := []string{"a.png", "b.JPG", "c.zip", "d.pdf", "e.woff2"}
+	for _, p := range binary {
+		if !hasBinaryExt(p) {
+			t.Errorf("hasBinaryExt(%q) = false, want true", p)
+		}
+	}
+	text := []string{"a.md", "b.go", "c.svg", "d.toml", "Makefile"}
+	for _, p := range text {
+		if hasBinaryExt(p) {
+			t.Errorf("hasBinaryExt(%q) = true, want false", p)
+		}
+	}
+}
+
+func TestSidebarFileStyle(t *testing.T) {
+	m := testModel(t, map[string]string{"a.md": "# A"})
+	if fg, ok := m.styles.file.GetForeground().(lipgloss.Color); !ok || string(fg) != "#FFFFFF" {
+		t.Errorf("file style foreground = %v, want #FFFFFF", m.styles.file.GetForeground())
+	}
+	if m.styles.file.GetBold() {
+		t.Error("file style must not be bold")
 	}
 }
