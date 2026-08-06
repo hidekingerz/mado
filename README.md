@@ -10,7 +10,7 @@
 
 - **Markdown rendering** in the terminal via Glamour
 - **Reader / source modes** — toggle between a clean document view and syntax-highlighted raw markdown with one key
-- **Sidebar file tree** rooted at the current directory (lazy-loaded, collapsible)
+- **Sidebar file tree** rooted at the current directory (lazy-loaded, collapsible; `a` toggles between markdown-only and all files)
 - **Multiple open files** — each file opens in its own tab
 - **Mouse support** — click files to open, click tabs to switch, click `✕` to close, scroll wheel in both panes
 - **TOML configuration** — `~/.config/mado/config.toml`
@@ -75,6 +75,7 @@ config.
 | `g`/`G`            | go to top / bottom              |
 | `r`/`F5`           | reload tree and current file    |
 | `m`                | toggle reader / source mode     |
+| `a`                | show all files / markdown only  |
 | `?`                | help                            |
 | `q`/`ctrl+c`       | quit                            |
 

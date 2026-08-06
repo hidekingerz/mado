@@ -256,6 +256,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.mode = modeReader
 		}
 		m.ensureRendered(m.activeTab())
+	case key.Matches(msg, k.ToggleAllFiles):
+		m.treeOpts.ShowAllFiles = !m.treeOpts.ShowAllFiles
+		m.reloadTree()
 	}
 	return m, nil
 }
@@ -409,12 +412,17 @@ func (m *Model) activeTab() *tab {
 	return m.tabs[m.active]
 }
 
-func (m *Model) reload() {
+// reloadTree re-reads the file tree, preserving expansion state.
+func (m *Model) reloadTree() {
 	if err := m.root.Reload(m.treeOpts); err != nil {
 		m.statusMsg = err.Error()
 	}
 	m.items = filetree.Flatten(m.root)
 	m.clampTree()
+}
+
+func (m *Model) reload() {
+	m.reloadTree()
 	if t := m.activeTab(); t != nil {
 		if data, err := os.ReadFile(t.path); err == nil {
 			t.raw = string(data)

@@ -7,22 +7,23 @@ import (
 )
 
 type keyMap struct {
-	Quit          key.Binding
-	Up            key.Binding
-	Down          key.Binding
-	Open          key.Binding
-	Back          key.Binding
-	CloseTab      key.Binding
-	NextTab       key.Binding
-	PrevTab       key.Binding
-	ToggleSidebar key.Binding
-	HalfPageDown  key.Binding
-	HalfPageUp    key.Binding
-	Top           key.Binding
-	Bottom        key.Binding
-	Reload        key.Binding
-	ToggleMode    key.Binding
-	Help          key.Binding
+	Quit           key.Binding
+	Up             key.Binding
+	Down           key.Binding
+	Open           key.Binding
+	Back           key.Binding
+	CloseTab       key.Binding
+	NextTab        key.Binding
+	PrevTab        key.Binding
+	ToggleSidebar  key.Binding
+	HalfPageDown   key.Binding
+	HalfPageUp     key.Binding
+	Top            key.Binding
+	Bottom         key.Binding
+	Reload         key.Binding
+	ToggleMode     key.Binding
+	ToggleAllFiles key.Binding
+	Help           key.Binding
 }
 
 func newKeyMap(k config.Keys) keyMap {
@@ -30,22 +31,23 @@ func newKeyMap(k config.Keys) keyMap {
 		return key.NewBinding(key.WithKeys(keys...), key.WithHelp(joinKeys(keys), help))
 	}
 	return keyMap{
-		Quit:          bind(k.Quit, "quit"),
-		Up:            bind(k.Up, "up"),
-		Down:          bind(k.Down, "down"),
-		Open:          bind(k.Open, "open / expand"),
-		Back:          bind(k.Back, "focus sidebar"),
-		CloseTab:      bind(k.CloseTab, "close tab"),
-		NextTab:       bind(k.NextTab, "next tab"),
-		PrevTab:       bind(k.PrevTab, "previous tab"),
-		ToggleSidebar: bind(k.ToggleSidebar, "toggle sidebar"),
-		HalfPageDown:  bind(k.HalfPageDown, "half page down"),
-		HalfPageUp:    bind(k.HalfPageUp, "half page up"),
-		Top:           bind(k.Top, "go to top"),
-		Bottom:        bind(k.Bottom, "go to bottom"),
-		Reload:        bind(k.Reload, "reload"),
-		ToggleMode:    bind(k.ToggleMode, "reader/source mode"),
-		Help:          bind(k.Help, "toggle help"),
+		Quit:           bind(k.Quit, "quit"),
+		Up:             bind(k.Up, "up"),
+		Down:           bind(k.Down, "down"),
+		Open:           bind(k.Open, "open / expand"),
+		Back:           bind(k.Back, "focus sidebar"),
+		CloseTab:       bind(k.CloseTab, "close tab"),
+		NextTab:        bind(k.NextTab, "next tab"),
+		PrevTab:        bind(k.PrevTab, "previous tab"),
+		ToggleSidebar:  bind(k.ToggleSidebar, "toggle sidebar"),
+		HalfPageDown:   bind(k.HalfPageDown, "half page down"),
+		HalfPageUp:     bind(k.HalfPageUp, "half page up"),
+		Top:            bind(k.Top, "go to top"),
+		Bottom:         bind(k.Bottom, "go to bottom"),
+		Reload:         bind(k.Reload, "reload"),
+		ToggleMode:     bind(k.ToggleMode, "reader/source mode"),
+		ToggleAllFiles: bind(k.ToggleAllFiles, "all files / markdown only"),
+		Help:           bind(k.Help, "toggle help"),
 	}
 }
 
