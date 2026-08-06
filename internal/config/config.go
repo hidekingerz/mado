@@ -29,6 +29,7 @@ type Theme struct {
 	SourceStyle string `toml:"source_style"`
 	AccentColor string `toml:"accent_color"`
 	BorderColor string `toml:"border_color"`
+	DirColor    string `toml:"dir_color"`
 	SelectionFg string `toml:"selection_fg"`
 	SelectionBg string `toml:"selection_bg"`
 	StatusFg    string `toml:"status_fg"`
@@ -72,6 +73,7 @@ func Default() Config {
 			DefaultMode: "reader",
 			AccentColor: "#7C6AEF",
 			BorderColor: "#585B70",
+			DirColor:    "#89B4FA",
 			SelectionFg: "#1E1E2E",
 			SelectionBg: "#7C6AEF",
 			StatusFg:    "#CDD6F4",
@@ -147,6 +149,7 @@ func merge(dst *Config, src Config) {
 	mergeStr(&dst.Theme.SourceStyle, src.Theme.SourceStyle)
 	mergeStr(&dst.Theme.AccentColor, src.Theme.AccentColor)
 	mergeStr(&dst.Theme.BorderColor, src.Theme.BorderColor)
+	mergeStr(&dst.Theme.DirColor, src.Theme.DirColor)
 	mergeStr(&dst.Theme.SelectionFg, src.Theme.SelectionFg)
 	mergeStr(&dst.Theme.SelectionBg, src.Theme.SelectionBg)
 	mergeStr(&dst.Theme.StatusFg, src.Theme.StatusFg)

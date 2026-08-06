@@ -99,3 +99,21 @@ func TestToggleAllFilesKey(t *testing.T) {
 		t.Errorf("ToggleAllFiles = %v, want [F]", cfg.Keys.ToggleAllFiles)
 	}
 }
+
+func TestDirColorKey(t *testing.T) {
+	if got := Default().Theme.DirColor; got != "#89B4FA" {
+		t.Errorf("default DirColor = %q, want #89B4FA", got)
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+	if err := os.WriteFile(path, []byte("[theme]\ndir_color = \"#FF0000\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Theme.DirColor != "#FF0000" {
+		t.Errorf("DirColor = %q, want #FF0000", cfg.Theme.DirColor)
+	}
+}
