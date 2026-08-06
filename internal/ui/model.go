@@ -102,6 +102,7 @@ type styles struct {
 	accent      lipgloss.Style
 	border      lipgloss.Style
 	selection   lipgloss.Style
+	dir         lipgloss.Style
 	dimmed      lipgloss.Style
 	status      lipgloss.Style
 	tabActive   lipgloss.Style
@@ -140,6 +141,7 @@ func New(cfg config.Config, rootDir string, initialFiles []string) (Model, error
 			accent:    lipgloss.NewStyle().Foreground(accent),
 			border:    lipgloss.NewStyle().Foreground(lipgloss.Color(cfg.Theme.BorderColor)),
 			selection: lipgloss.NewStyle().Foreground(lipgloss.Color(cfg.Theme.SelectionFg)).Background(lipgloss.Color(cfg.Theme.SelectionBg)).Bold(true),
+			dir:       lipgloss.NewStyle().Foreground(lipgloss.Color(cfg.Theme.DirColor)).Bold(true),
 			dimmed:    lipgloss.NewStyle().Foreground(lipgloss.Color("245")),
 			status:    lipgloss.NewStyle().Foreground(lipgloss.Color(cfg.Theme.StatusFg)).Background(lipgloss.Color(cfg.Theme.StatusBg)),
 			tabActive: lipgloss.NewStyle().Foreground(lipgloss.Color(cfg.Theme.SelectionFg)).Background(accent).Bold(true),

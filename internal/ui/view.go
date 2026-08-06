@@ -96,7 +96,11 @@ func (m Model) renderSidebar() string {
 				icon = "▸"
 			}
 		}
-		text := strings.Repeat("  ", it.Depth) + icon + " " + it.Node.Name
+		name := it.Node.Name
+		if it.Node.IsDir {
+			name += "/"
+		}
+		text := strings.Repeat("  ", it.Depth) + icon + " " + name
 		text = truncate(text, innerW)
 		text += strings.Repeat(" ", innerW-lipgloss.Width(text))
 
@@ -106,7 +110,7 @@ func (m Model) renderSidebar() string {
 		case idx == m.cursor:
 			text = m.styles.accent.Render(text)
 		case it.Node.IsDir:
-			text = lipgloss.NewStyle().Bold(true).Render(text)
+			text = m.styles.dir.Render(text)
 		}
 		rows = append(rows, text)
 	}
