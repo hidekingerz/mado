@@ -77,17 +77,19 @@ type Model struct {
 	width  int
 	height int
 
-	root      *filetree.Node
-	treeOpts  filetree.Options
-	items     []filetree.Item
-	cursor    int
-	treeOff   int
-	sidebar   bool
-	focus     focusArea
-	mode      viewMode
-	style     string // resolved glamour style ("auto" already decided)
-	showHelp  bool
-	statusMsg string
+	root        *filetree.Node
+	treeOpts    filetree.Options
+	items       []filetree.Item
+	cursor      int
+	treeOff     int
+	sidebar     bool
+	focus       focusArea
+	mode        viewMode
+	style       string // resolved glamour style ("auto" already decided)
+	sourceStyle string // chroma style for source mode; "" = no highlighting
+	formatter   string // chroma formatter; pinned at startup, "" = no color
+	showHelp    bool
+	statusMsg   string
 
 	tabs       []*tab
 	active     int
@@ -122,15 +124,18 @@ func New(cfg config.Config, rootDir string, initialFiles []string) (Model, error
 		mode = modeSource
 	}
 	accent := lipgloss.Color(cfg.Theme.AccentColor)
+	style := resolveStyle(cfg.Theme.Style)
 	m := Model{
-		cfg:      cfg,
-		keys:     newKeyMap(cfg.Keys),
-		root:     root,
-		treeOpts: opts,
-		sidebar:  true,
-		focus:    focusSidebar,
-		mode:     mode,
-		style:    resolveStyle(cfg.Theme.Style),
+		cfg:         cfg,
+		keys:        newKeyMap(cfg.Keys),
+		root:        root,
+		treeOpts:    opts,
+		sidebar:     true,
+		focus:       focusSidebar,
+		mode:        mode,
+		style:       style,
+		sourceStyle: chromaStyleName(style, cfg.Theme.SourceStyle, termenv.HasDarkBackground()),
+		formatter:   chromaFormatterName(),
 		styles: styles{
 			accent:    lipgloss.NewStyle().Foreground(accent),
 			border:    lipgloss.NewStyle().Foreground(lipgloss.Color(cfg.Theme.BorderColor)),
@@ -437,7 +442,10 @@ func (m *Model) ensureRendered(t *tab) {
 
 	content := t.raw
 	if m.mode == modeSource || !filetree.IsMarkdown(t.path) {
-		content = wordwrap.String(t.raw, w-2)
+		if hl, err := highlightSource(t.raw, t.path, m.sourceStyle, m.formatter); err == nil {
+			content = hl
+		}
+		content = wordwrap.String(content, w-2)
 	} else {
 		r, err := newRenderer(m.style, w)
 		if err == nil {
