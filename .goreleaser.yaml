@@ -30,6 +30,7 @@ archives:
         formats: [zip]
     files:
       - LICENSE
+      - THIRD_PARTY_LICENSES
       - README.md
       - config.example.toml
 
