@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 )
@@ -135,5 +136,44 @@ func TestLowColorProfileFallsBack(t *testing.T) {
 	}
 	if !strings.Contains(m.tabs[0].vp.View(), "binary file") {
 		t.Error("Ascii profile should show the placeholder")
+	}
+}
+
+// TestImageTabRerendersAfterHeightOnlyResize reproduces a stale-art bug:
+// an inactive image tab must re-render when the pane height changes even
+// though its width (the old cache key) stayed the same.
+func TestImageTabRerendersAfterHeightOnlyResize(t *testing.T) {
+	m := testModel(t, map[string]string{
+		// Tall, narrow image so the render is height-bound (not
+		// width-bound) at both the original and resized heights.
+		"pic.png": encodePNG(t, 4, 200, color.RGBA{200, 30, 30, 255}),
+		"a.md":    "# A",
+	})
+	m.profile = termenv.TrueColor
+	m.openFile(filepath.Join(m.root.Path, "pic.png"))
+	imgIdx := m.active
+	before := strings.Count(m.tabs[imgIdx].vp.View(), "▀")
+	if before == 0 {
+		t.Fatal("expected half-block rows before resize")
+	}
+
+	m.openFile(filepath.Join(m.root.Path, "a.md")) // makes the image tab inactive
+	if m.active == imgIdx {
+		t.Fatal("second tab should now be active")
+	}
+
+	// Height-only resize: width is unchanged from testModel's initial
+	// WindowSizeMsg{Width: 100, Height: 30}.
+	resized, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 60})
+	m = resized.(Model)
+
+	m.switchTab(-1) // back to the image tab
+	if m.active != imgIdx {
+		t.Fatalf("active = %d, want %d", m.active, imgIdx)
+	}
+	after := strings.Count(m.tabs[imgIdx].vp.View(), "▀")
+
+	if after == before {
+		t.Errorf("image tab did not re-render for the new height: before=%d after=%d rows of ▀", before, after)
 	}
 }

@@ -62,6 +62,7 @@ type tab struct {
 	img          image.Image // decoded image; nil = not an image tab
 	vp           viewport.Model
 	rendered     int // viewport width the content was last rendered at; 0 = never
+	renderedH    int // viewport height the content was last rendered at; image art depends on it
 	renderedMode viewMode
 	renderErr    string
 }
@@ -475,7 +476,8 @@ func (m *Model) ensureRendered(t *tab) {
 		return
 	}
 	w := m.contentInnerWidth()
-	if w <= 0 || (t.rendered == w && t.renderedMode == m.mode) {
+	h := m.contentInnerHeight()
+	if w <= 0 || (t.rendered == w && t.renderedH == h && t.renderedMode == m.mode) {
 		return
 	}
 	t.vp.Width = w
@@ -513,6 +515,7 @@ func (m *Model) ensureRendered(t *tab) {
 	t.vp.SetContent(content)
 	t.vp.SetYOffset(off)
 	t.rendered = w
+	t.renderedH = h
 	t.renderedMode = m.mode
 }
 
