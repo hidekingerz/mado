@@ -2,6 +2,8 @@ package ui
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"image"
 	_ "image/gif" // register stdlib decoders for image.Decode
 	_ "image/jpeg"
@@ -11,6 +13,18 @@ import (
 
 	"github.com/muesli/termenv"
 )
+
+// maxImagePixels caps the declared width*height of an image before mado
+// attempts a full decode. Without this cap, a small crafted file (e.g. a
+// 13-byte hand-built GIF header) can declare arbitrarily large dimensions
+// and cause image.Decode to allocate the full pixel buffer — at
+// 50,000,000 pixels and 4 bytes/pixel for RGBA, that's already ~200 MB
+// from a single sidebar click, enough to freeze or crash the TUI.
+const maxImagePixels = 50_000_000
+
+// errImageTooLarge is wrapped into the error decodeImage returns when an
+// image's declared dimensions exceed maxImagePixels.
+var errImageTooLarge = errors.New("image dimensions exceed maximum allowed pixel count")
 
 // imageExts are the formats the stdlib can decode. BMP/WebP/ICO are
 // deliberately absent — they fall back to the binary placeholder.
@@ -23,8 +37,22 @@ func hasImageExt(path string) bool {
 	return imageExts[strings.ToLower(filepath.Ext(path))]
 }
 
-// decodeImage decodes PNG/JPEG/GIF data (GIF: first frame).
+// decodeImage decodes PNG/JPEG/GIF data (GIF: first frame). It first reads
+// only the declared dimensions via image.DecodeConfig and rejects images
+// whose pixel count would exceed maxImagePixels, so a hostile file can't
+// force a huge allocation before mado gets a chance to say no.
 func decodeImage(data []byte) (image.Image, error) {
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+	if cfg.Width <= 0 || cfg.Height <= 0 {
+		return nil, fmt.Errorf("decodeImage: non-positive dimensions %dx%d", cfg.Width, cfg.Height)
+	}
+	if int64(cfg.Width)*int64(cfg.Height) > maxImagePixels {
+		return nil, fmt.Errorf("decodeImage: %dx%d exceeds %d-pixel cap: %w", cfg.Width, cfg.Height, maxImagePixels, errImageTooLarge)
+	}
+
 	img, _, err := image.Decode(bytes.NewReader(data))
 	return img, err
 }

@@ -2,12 +2,16 @@ package ui
 
 import (
 	"bytes"
+	"errors"
 	"image"
 	"image/color"
+	"image/gif"
+	"image/jpeg"
 	"image/png"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -17,17 +21,63 @@ import (
 // encodePNG returns a w×h PNG filled with c, as a string.
 func encodePNG(t *testing.T, w, h int, c color.Color) string {
 	t.Helper()
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, solidRGBA(w, h, c)); err != nil {
+		t.Fatal(err)
+	}
+	return buf.String()
+}
+
+// encodeGIF returns a w×h GIF filled with c, as a string.
+func encodeGIF(t *testing.T, w, h int, c color.Color) string {
+	t.Helper()
+	var buf bytes.Buffer
+	if err := gif.Encode(&buf, solidRGBA(w, h, c), nil); err != nil {
+		t.Fatal(err)
+	}
+	return buf.String()
+}
+
+// encodeJPEG returns a w×h JPEG filled with c, as a string.
+func encodeJPEG(t *testing.T, w, h int, c color.Color) string {
+	t.Helper()
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, solidRGBA(w, h, c), nil); err != nil {
+		t.Fatal(err)
+	}
+	return buf.String()
+}
+
+// solidRGBA returns a w×h image filled with c.
+func solidRGBA(w, h int, c color.Color) *image.RGBA {
 	img := image.NewRGBA(image.Rect(0, 0, w, h))
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
 			img.Set(x, y, c)
 		}
 	}
-	var buf bytes.Buffer
-	if err := png.Encode(&buf, img); err != nil {
-		t.Fatal(err)
+	return img
+}
+
+// buildGIFHeader hand-builds a minimal 13-byte GIF89a header (magic +
+// logical screen descriptor, no global color table) declaring a w×h
+// image. image.DecodeConfig only needs these 13 bytes to report the
+// declared dimensions, without ever reading frame data.
+func buildGIFHeader(t *testing.T, w, h int) []byte {
+	t.Helper()
+	if w < 0 || w > 0xFFFF || h < 0 || h > 0xFFFF {
+		t.Fatalf("dimensions %dx%d out of GIF logical screen descriptor range", w, h)
 	}
-	return buf.String()
+	var buf bytes.Buffer
+	buf.WriteString("GIF89a")
+	buf.WriteByte(byte(w))
+	buf.WriteByte(byte(w >> 8))
+	buf.WriteByte(byte(h))
+	buf.WriteByte(byte(h >> 8))
+	buf.WriteByte(0x00) // packed fields: no global color table
+	buf.WriteByte(0x00) // background color index
+	buf.WriteByte(0x00) // pixel aspect ratio
+	return buf.Bytes()
 }
 
 func TestHasImageExt(t *testing.T) {
@@ -49,10 +99,58 @@ func TestDecodeImageRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	if b := img.Bounds(); b.Dx() != 4 || b.Dy() != 4 {
-		t.Errorf("bounds = %v, want 4x4", b)
+		t.Errorf("png bounds = %v, want 4x4", b)
 	}
+
+	gifImg, err := decodeImage([]byte(encodeGIF(t, 4, 4, color.RGBA{0, 255, 0, 255})))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b := gifImg.Bounds(); b.Dx() != 4 || b.Dy() != 4 {
+		t.Errorf("gif bounds = %v, want 4x4", b)
+	}
+
+	jpegImg, err := decodeImage([]byte(encodeJPEG(t, 4, 4, color.RGBA{0, 0, 255, 255})))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b := jpegImg.Bounds(); b.Dx() != 4 || b.Dy() != 4 {
+		t.Errorf("jpeg bounds = %v, want 4x4", b)
+	}
+
 	if _, err := decodeImage([]byte("not an image at all")); err == nil {
 		t.Error("garbage should fail to decode")
+	}
+}
+
+// TestDecodeImageRejectsHugeDimensions guards against a small crafted file
+// declaring huge dimensions (a classic decompression-bomb shape): without
+// a cap, image.Decode would allocate the full pixel buffer for whatever
+// the header claims. The hand-built GIF header here declares 60000x60000
+// (3.6 billion pixels) but is only 13 bytes long, so if decodeImage ever
+// fell through to a full image.Decode, it would either allocate ~3.6 GB
+// or error out slowly — this test asserts it is rejected immediately via
+// image.DecodeConfig instead.
+func TestDecodeImageRejectsHugeDimensions(t *testing.T) {
+	huge := buildGIFHeader(t, 60000, 60000)
+
+	start := time.Now()
+	_, err := decodeImage(huge)
+	elapsed := time.Since(start)
+
+	if err == nil {
+		t.Fatal("decodeImage should reject a 60000x60000 image")
+	}
+	if !errors.Is(err, errImageTooLarge) {
+		t.Errorf("decodeImage error = %v, want it to wrap errImageTooLarge", err)
+	}
+	if elapsed > 500*time.Millisecond {
+		t.Errorf("decodeImage took %v; should reject via DecodeConfig before attempting a full decode", elapsed)
+	}
+
+	// A normal small image must still decode fine.
+	if _, err := decodeImage([]byte(encodePNG(t, 4, 4, color.RGBA{0, 255, 0, 255}))); err != nil {
+		t.Errorf("small image should still decode: %v", err)
 	}
 }
 
