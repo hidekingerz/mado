@@ -26,9 +26,11 @@ func looksBinary(data []byte) bool {
 // binaryExts are well-known binary file extensions. Used only to pick
 // sidebar colors; opening a file still checks its content with
 // looksBinary. SVG is XML text, so it is deliberately absent.
+// Displayable image extensions (PNG/JPEG/GIF) live in imageExts
+// (image.go) instead, since those render as inline art rather than a
+// placeholder.
 var binaryExts = map[string]bool{
-	".png": true, ".jpg": true, ".jpeg": true, ".gif": true, ".bmp": true,
-	".webp": true, ".ico": true,
+	".bmp": true, ".webp": true, ".ico": true,
 	".mp3": true, ".wav": true, ".flac": true, ".mp4": true, ".mov": true,
 	".avi": true,
 	".zip": true, ".tar": true, ".gz": true, ".tgz": true, ".bz2": true,

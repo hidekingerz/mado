@@ -5,6 +5,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -89,5 +90,50 @@ func TestRenderImageUnusablePane(t *testing.T) {
 	img, _ := decodeImage([]byte(encodePNG(t, 8, 8, color.RGBA{0, 0, 0, 255})))
 	if out := renderImage(img, 1, 0, termenv.TrueColor); out != "" {
 		t.Errorf("unusable pane should render empty, got %q", out)
+	}
+}
+
+func TestOpenImageShowsHalfBlocks(t *testing.T) {
+	m := testModel(t, map[string]string{"pic.png": encodePNG(t, 8, 8, color.RGBA{200, 30, 30, 255}), "a.md": "# A"})
+	m.profile = termenv.TrueColor
+	m.openFile(filepath.Join(m.root.Path, "pic.png"))
+	if len(m.tabs) != 1 {
+		t.Fatalf("tabs = %d, want 1", len(m.tabs))
+	}
+	tb := m.tabs[0]
+	if tb.img == nil {
+		t.Fatal("tab should be an image tab")
+	}
+	view := tb.vp.View()
+	if !strings.Contains(view, "▀") {
+		t.Error("viewport should contain half-block art")
+	}
+	if !strings.Contains(view, "pic.png") || !strings.Contains(view, "8×8") {
+		t.Errorf("viewport should contain the caption, got %q", view)
+	}
+}
+
+func TestCorruptImageFallsBackToPlaceholder(t *testing.T) {
+	m := testModel(t, map[string]string{"bad.png": "\x89PNG\r\n\x1a\n\x00broken"})
+	m.profile = termenv.TrueColor
+	m.openFile(filepath.Join(m.root.Path, "bad.png"))
+	tb := m.tabs[0]
+	if tb.img != nil {
+		t.Fatal("corrupt png must not become an image tab")
+	}
+	if !tb.binary || !strings.Contains(tb.vp.View(), "binary file") {
+		t.Error("corrupt png should fall back to the binary placeholder")
+	}
+}
+
+func TestLowColorProfileFallsBack(t *testing.T) {
+	m := testModel(t, map[string]string{"pic.png": encodePNG(t, 8, 8, color.RGBA{10, 10, 10, 255})})
+	m.profile = termenv.Ascii
+	m.openFile(filepath.Join(m.root.Path, "pic.png"))
+	if m.tabs[0].img != nil {
+		t.Error("Ascii profile should not create image tabs")
+	}
+	if !strings.Contains(m.tabs[0].vp.View(), "binary file") {
+		t.Error("Ascii profile should show the placeholder")
 	}
 }

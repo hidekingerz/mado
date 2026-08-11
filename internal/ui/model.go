@@ -4,6 +4,7 @@ package ui
 
 import (
 	"fmt"
+	"image"
 	"os"
 	"strings"
 
@@ -57,16 +58,27 @@ type tab struct {
 	path         string
 	title        string
 	raw          string
-	binary       bool // content is binary; raw holds a placeholder, not file bytes
+	binary       bool        // content is binary; raw holds a placeholder, not file bytes
+	img          image.Image // decoded image; nil = not an image tab
 	vp           viewport.Model
 	rendered     int // viewport width the content was last rendered at; 0 = never
 	renderedMode viewMode
 	renderErr    string
 }
 
-// setContent stores file data on the tab. Binary data is replaced with a
-// placeholder so raw control bytes never reach the terminal.
-func (t *tab) setContent(data []byte) {
+// setContent stores file data on the tab. Images become half-block
+// art tabs; other binary data is replaced with a placeholder so raw
+// control bytes never reach the terminal.
+func (t *tab) setContent(data []byte, profile termenv.Profile) {
+	t.img = nil
+	if hasImageExt(t.path) && (profile == termenv.TrueColor || profile == termenv.ANSI256) {
+		if img, err := decodeImage(data); err == nil {
+			t.img = img
+			t.binary = false
+			t.raw = ""
+			return
+		}
+	}
 	if looksBinary(data) {
 		t.binary = true
 		t.raw = fmt.Sprintf("%s\n\nbinary file (%s) — not displayed", t.title, humanSize(len(data)))
@@ -99,9 +111,10 @@ type Model struct {
 	sidebar     bool
 	focus       focusArea
 	mode        viewMode
-	style       string // resolved glamour style ("auto" already decided)
-	sourceStyle string // chroma style for source mode; "" = no highlighting
-	formatter   string // chroma formatter; pinned at startup, "" = no color
+	style       string          // resolved glamour style ("auto" already decided)
+	sourceStyle string          // chroma style for source mode; "" = no highlighting
+	formatter   string          // chroma formatter; pinned at startup, "" = no color
+	profile     termenv.Profile // terminal color capability, pinned at startup
 	showHelp    bool
 	statusMsg   string
 
@@ -153,6 +166,7 @@ func New(cfg config.Config, rootDir string, initialFiles []string) (Model, error
 		style:       style,
 		sourceStyle: chromaStyleName(style, cfg.Theme.SourceStyle, termenv.HasDarkBackground()),
 		formatter:   chromaFormatterName(),
+		profile:     termenv.ColorProfile(),
 		styles: styles{
 			accent:    lipgloss.NewStyle().Foreground(accent),
 			border:    lipgloss.NewStyle().Foreground(lipgloss.Color(cfg.Theme.BorderColor)),
@@ -390,7 +404,7 @@ func (m *Model) openFile(path string) {
 		path:  path,
 		title: baseName(path),
 	}
-	t.setContent(data)
+	t.setContent(data, m.profile)
 	t.vp = viewport.New(m.contentInnerWidth(), m.contentInnerHeight())
 	m.tabs = append(m.tabs, t)
 	m.active = len(m.tabs) - 1
@@ -445,7 +459,7 @@ func (m *Model) reload() {
 	m.reloadTree()
 	if t := m.activeTab(); t != nil {
 		if data, err := os.ReadFile(t.path); err == nil {
-			t.setContent(data)
+			t.setContent(data, m.profile)
 			t.rendered = 0
 			m.ensureRendered(t)
 		} else {
@@ -469,7 +483,12 @@ func (m *Model) ensureRendered(t *tab) {
 	t.renderErr = ""
 
 	content := t.raw
-	if t.binary {
+	if t.img != nil {
+		ib := t.img.Bounds()
+		art := renderImage(t.img, w-2, m.contentInnerHeight()-3, m.profile)
+		caption := m.styles.dimmed.Render(fmt.Sprintf("%s  %d×%d", t.title, ib.Dx(), ib.Dy()))
+		content = lipgloss.Place(w, m.contentInnerHeight(), lipgloss.Center, lipgloss.Center, art+"\n\n"+caption)
+	} else if t.binary {
 		content = lipgloss.Place(w, m.contentInnerHeight(), lipgloss.Center, lipgloss.Center, t.raw)
 	} else if m.mode == modeSource || !filetree.IsMarkdown(t.path) {
 		if hl, err := highlightSource(t.raw, t.path, m.sourceStyle, m.formatter); err == nil {

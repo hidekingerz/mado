@@ -45,13 +45,13 @@ func TestOpenBinaryFileShowsPlaceholder(t *testing.T) {
 }
 
 func TestHasBinaryExt(t *testing.T) {
-	binary := []string{"a.png", "b.JPG", "c.zip", "d.pdf", "e.woff2"}
+	binary := []string{"a.zip", "b.pdf", "c.woff2", "d.exe", "e.webp"}
 	for _, p := range binary {
 		if !hasBinaryExt(p) {
 			t.Errorf("hasBinaryExt(%q) = false, want true", p)
 		}
 	}
-	text := []string{"a.md", "b.go", "c.svg", "d.toml", "Makefile"}
+	text := []string{"a.md", "b.go", "c.svg", "d.toml", "Makefile", "e.png", "f.JPG", "g.gif"}
 	for _, p := range text {
 		if hasBinaryExt(p) {
 			t.Errorf("hasBinaryExt(%q) = true, want false", p)
