@@ -132,6 +132,65 @@ func TestReloadPreservesExpansion(t *testing.T) {
 	}
 }
 
+// Regression test for issue #9: expansion state two or more levels
+// deep must survive a reload, not just the first level.
+func TestReloadPreservesNestedExpansion(t *testing.T) {
+	dir := makeTree(t) // contains docs/inner/deep.markdown
+	root, err := New(dir, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	docs := Flatten(root)[0].Node
+	if err := docs.Toggle(Options{}); err != nil {
+		t.Fatal(err)
+	}
+	inner := Flatten(root)[1].Node
+	if inner.Name != "inner" {
+		t.Fatalf("unexpected layout: %v", names(Flatten(root)))
+	}
+	if err := inner.Toggle(Options{}); err != nil {
+		t.Fatal(err)
+	}
+	before := names(Flatten(root))
+
+	if err := root.Reload(Options{}); err != nil {
+		t.Fatal(err)
+	}
+
+	after := names(Flatten(root))
+	if len(after) != len(before) {
+		t.Fatalf("nested expansion lost: before %v, after %v", before, after)
+	}
+	for i := range before {
+		if after[i] != before[i] {
+			t.Fatalf("tree changed shape: before %v, after %v", before, after)
+		}
+	}
+	if !Flatten(root)[1].Node.Expanded {
+		t.Error("docs/inner should stay expanded after reload")
+	}
+}
+
+// A directory that was collapsed before the reload must stay collapsed
+// (and unloaded) afterwards.
+func TestReloadKeepsCollapsedDirsLazy(t *testing.T) {
+	dir := makeTree(t)
+	root, err := New(dir, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := root.Reload(Options{}); err != nil {
+		t.Fatal(err)
+	}
+	docs := Flatten(root)[0].Node
+	if docs.Expanded {
+		t.Error("collapsed docs should stay collapsed after reload")
+	}
+	if docs.loaded {
+		t.Error("collapsed docs should stay lazy (not loaded) after reload")
+	}
+}
+
 func TestIsMarkdown(t *testing.T) {
 	for path, want := range map[string]bool{
 		"a.md": true, "b.MARKDOWN": true, "c.mkd": true, "d.txt": false, "e": false,

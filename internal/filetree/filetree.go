@@ -76,25 +76,38 @@ func (n *Node) Toggle(opts Options) error {
 }
 
 // Reload re-reads the children of every loaded directory under n,
-// preserving expansion state where paths still exist.
+// preserving expansion state at every depth where paths still exist.
 func (n *Node) Reload(opts Options) error {
 	if !n.IsDir || !n.loaded {
 		return nil
 	}
+	// Collect the expanded paths of the whole old tree before load()
+	// replaces any node, so deeply nested state survives the reload.
 	expanded := map[string]bool{}
+	collectExpanded(n, expanded)
+	return n.reloadInto(expanded, opts)
+}
+
+func collectExpanded(n *Node, set map[string]bool) {
 	for _, c := range n.Children {
 		if c.IsDir && c.Expanded {
-			expanded[c.Path] = true
+			set[c.Path] = true
+			collectExpanded(c, set)
 		}
 	}
+}
+
+// reloadInto re-reads n's children and re-expands those whose paths are
+// in expanded. Only previously expanded directories are loaded, keeping
+// the rest lazy.
+func (n *Node) reloadInto(expanded map[string]bool, opts Options) error {
 	if err := n.load(opts); err != nil {
 		return err
 	}
 	for _, c := range n.Children {
-		if expanded[c.Path] {
-			if err := c.load(opts); err == nil {
+		if c.IsDir && expanded[c.Path] {
+			if err := c.reloadInto(expanded, opts); err == nil {
 				c.Expanded = true
-				_ = c.Reload(opts)
 			}
 		}
 	}

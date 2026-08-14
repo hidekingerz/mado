@@ -449,11 +449,24 @@ func (m *Model) activeTab() *tab {
 
 // reloadTree re-reads the file tree, preserving expansion state.
 func (m *Model) reloadTree() {
+	// Remember the selected node by path: reloading can add or remove
+	// rows, so the cursor index alone would drift to a different item.
+	var curPath string
+	if m.cursor >= 0 && m.cursor < len(m.items) {
+		curPath = m.items[m.cursor].Node.Path
+	}
 	if err := m.root.Reload(m.treeOpts); err != nil {
 		m.statusMsg = err.Error()
 	}
 	m.items = filetree.Flatten(m.root)
+	for i, it := range m.items {
+		if it.Node.Path == curPath {
+			m.cursor = i
+			break
+		}
+	}
 	m.clampTree()
+	m.scrollCursorIntoView()
 }
 
 func (m *Model) reload() {
