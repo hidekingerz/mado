@@ -76,29 +76,58 @@ func (n *Node) Toggle(opts Options) error {
 }
 
 // Reload re-reads the children of every loaded directory under n,
-// preserving expansion state where paths still exist.
+// preserving expansion state at every depth where paths still exist —
+// including state remembered inside directories that are currently
+// collapsed but were loaded before. Directories that were never loaded
+// stay lazy. If a previously loaded subdirectory can no longer be
+// read, it is left collapsed and the first such error is returned so
+// the caller can surface it.
 func (n *Node) Reload(opts Options) error {
 	if !n.IsDir || !n.loaded {
 		return nil
 	}
+	// Snapshot the whole old tree before load() replaces any node.
+	loaded := map[string]bool{}
 	expanded := map[string]bool{}
+	collectState(n, loaded, expanded)
+	return n.reloadInto(loaded, expanded, opts)
+}
+
+func collectState(n *Node, loaded, expanded map[string]bool) {
 	for _, c := range n.Children {
-		if c.IsDir && c.Expanded {
+		if !c.IsDir {
+			continue
+		}
+		if c.Expanded {
 			expanded[c.Path] = true
 		}
+		if c.loaded {
+			loaded[c.Path] = true
+			collectState(c, loaded, expanded)
+		}
 	}
+}
+
+// reloadInto re-reads n's children, recursing into every directory that
+// was loaded before and restoring its expansion flag.
+func (n *Node) reloadInto(loaded, expanded map[string]bool, opts Options) error {
 	if err := n.load(opts); err != nil {
 		return err
 	}
+	var firstErr error
 	for _, c := range n.Children {
-		if expanded[c.Path] {
-			if err := c.load(opts); err == nil {
-				c.Expanded = true
-				_ = c.Reload(opts)
-			}
+		if !c.IsDir || !loaded[c.Path] {
+			continue
 		}
+		if err := c.reloadInto(loaded, expanded, opts); err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		c.Expanded = expanded[c.Path]
 	}
-	return nil
+	return firstErr
 }
 
 func (n *Node) load(opts Options) error {

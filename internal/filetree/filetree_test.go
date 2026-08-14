@@ -132,6 +132,129 @@ func TestReloadPreservesExpansion(t *testing.T) {
 	}
 }
 
+// Regression test for issue #9: expansion state two or more levels
+// deep must survive a reload, not just the first level.
+func TestReloadPreservesNestedExpansion(t *testing.T) {
+	dir := makeTree(t) // contains docs/inner/deep.markdown
+	root, err := New(dir, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	docs := Flatten(root)[0].Node
+	if err := docs.Toggle(Options{}); err != nil {
+		t.Fatal(err)
+	}
+	inner := Flatten(root)[1].Node
+	if inner.Name != "inner" {
+		t.Fatalf("unexpected layout: %v", names(Flatten(root)))
+	}
+	if err := inner.Toggle(Options{}); err != nil {
+		t.Fatal(err)
+	}
+	before := names(Flatten(root))
+
+	if err := root.Reload(Options{}); err != nil {
+		t.Fatal(err)
+	}
+
+	after := names(Flatten(root))
+	if len(after) != len(before) {
+		t.Fatalf("nested expansion lost: before %v, after %v", before, after)
+	}
+	for i := range before {
+		if after[i] != before[i] {
+			t.Fatalf("tree changed shape: before %v, after %v", before, after)
+		}
+	}
+	if !Flatten(root)[1].Node.Expanded {
+		t.Error("docs/inner should stay expanded after reload")
+	}
+}
+
+// A directory that was collapsed before the reload must stay collapsed
+// (and unloaded) afterwards.
+func TestReloadKeepsCollapsedDirsLazy(t *testing.T) {
+	dir := makeTree(t)
+	root, err := New(dir, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := root.Reload(Options{}); err != nil {
+		t.Fatal(err)
+	}
+	docs := Flatten(root)[0].Node
+	if docs.Expanded {
+		t.Error("collapsed docs should stay collapsed after reload")
+	}
+	if docs.loaded {
+		t.Error("collapsed docs should stay lazy (not loaded) after reload")
+	}
+}
+
+// State remembered inside a collapsed-but-previously-loaded directory
+// must also survive a reload: expand docs and docs/inner, collapse
+// docs, reload, re-expand docs -> inner is still expanded.
+func TestReloadPreservesStateInsideCollapsedDir(t *testing.T) {
+	dir := makeTree(t)
+	root, err := New(dir, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	docs := Flatten(root)[0].Node
+	if err := docs.Toggle(Options{}); err != nil {
+		t.Fatal(err)
+	}
+	inner := Flatten(root)[1].Node
+	if err := inner.Toggle(Options{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := docs.Toggle(Options{}); err != nil { // collapse docs
+		t.Fatal(err)
+	}
+
+	if err := root.Reload(Options{}); err != nil {
+		t.Fatal(err)
+	}
+
+	docs = Flatten(root)[0].Node
+	if err := docs.Toggle(Options{}); err != nil { // re-expand docs
+		t.Fatal(err)
+	}
+	inner = Flatten(root)[1].Node
+	if inner.Name != "inner" {
+		t.Fatalf("unexpected layout: %v", names(Flatten(root)))
+	}
+	if !inner.Expanded {
+		t.Error("inner should still be expanded after reload, as it would be without one")
+	}
+}
+
+// A previously expanded subdirectory that can no longer be read must
+// surface an error instead of silently collapsing.
+func TestReloadReportsUnreadableSubdir(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("permission checks do not apply to root")
+	}
+	dir := makeTree(t)
+	root, err := New(dir, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	docs := Flatten(root)[0].Node
+	if err := docs.Toggle(Options{}); err != nil {
+		t.Fatal(err)
+	}
+	docsPath := filepath.Join(dir, "docs")
+	if err := os.Chmod(docsPath, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(docsPath, 0o755) })
+
+	if err := root.Reload(Options{}); err == nil {
+		t.Error("Reload should report the unreadable expanded subdirectory")
+	}
+}
+
 func TestIsMarkdown(t *testing.T) {
 	for path, want := range map[string]bool{
 		"a.md": true, "b.MARKDOWN": true, "c.mkd": true, "d.txt": false, "e": false,

@@ -271,6 +271,45 @@ func TestToggleAllFilesKeepsExpansion(t *testing.T) {
 	}
 }
 
+// Regression tests for issue #9: reload must keep the sidebar state —
+// nested expansion and the selected node.
+func TestReloadKeepsNestedExpansion(t *testing.T) {
+	m := testModel(t, map[string]string{"docs/inner/deep.md": "# D", "top.md": "# T"})
+	// cursor 0 = docs; expand it, then expand docs/inner below it.
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyDown})
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	rows := len(m.items) // docs, inner, deep.md, top.md
+	if rows != 4 {
+		t.Fatalf("setup: %d rows, want 4", rows)
+	}
+
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	if len(m.items) != rows {
+		var names []string
+		for _, it := range m.items {
+			names = append(names, it.Node.Name)
+		}
+		t.Fatalf("reload collapsed nested dirs: %d rows, want %d (%v)", len(m.items), rows, names)
+	}
+}
+
+func TestReloadKeepsCursorOnSameNode(t *testing.T) {
+	m := testModel(t, map[string]string{"b.md": "# B", "z.md": "# Z"})
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyDown}) // cursor on z.md
+	if m.items[m.cursor].Node.Name != "z.md" {
+		t.Fatalf("setup: cursor on %q", m.items[m.cursor].Node.Name)
+	}
+	// A new file that sorts before z.md shifts the row indexes.
+	if err := os.WriteFile(filepath.Join(m.root.Path, "a.md"), []byte("# A"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	if got := m.items[m.cursor].Node.Name; got != "z.md" {
+		t.Errorf("cursor drifted to %q after reload, want z.md", got)
+	}
+}
+
 func TestViewRenders(t *testing.T) {
 	m := testModel(t, map[string]string{"a.md": "# A"}, "a.md")
 	v := m.View()
