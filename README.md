@@ -14,6 +14,7 @@
 - **Sidebar file tree** rooted at the current directory (lazy-loaded, collapsible; `a` toggles between markdown-only and all files)
 - **Multiple open files** — each file opens in its own tab
 - **Mouse support** — click files to open, click tabs to switch, click `✕` to close, scroll wheel in both panes
+- **Remote commands** — `mado --remote open FILE` adds a tab to the instance already on screen instead of starting a second one
 - **TOML configuration** — `~/.config/mado/config.toml`
 - **Configurable keyboard shortcuts** — every action can be rebound
 - **Theme customization** — Glamour styles (`auto`, `dark`, `light`, `dracula`, or your own style JSON) plus UI colors and a `source_style` for source-mode highlighting
@@ -42,6 +43,7 @@ go build -o mado .
 mado                  # browse markdown files under the current directory
 mado docs/            # root the sidebar at docs/
 mado README.md a.md   # open files in tabs immediately
+mado --remote open notes.md   # add a tab to a running mado
 mado -style dracula   # override the markdown theme
 mado -config my.toml  # use an alternate config file
 mado -version         # print the version
@@ -85,6 +87,33 @@ config.
 - Click a file in the sidebar to open it; click a directory to expand or collapse it.
 - Click a tab to switch to it; click the `✕` on a tab to close it.
 - Scroll wheel scrolls whichever pane is under the pointer.
+
+### Remote commands
+
+A running mado accepts commands from other processes, so a script, an
+editor hook, or a terminal multiplexer plugin can put a file in front
+of you without opening a second viewer:
+
+```sh
+mado --remote open docs/plan.md    # add a tab (or switch to it if already open)
+mado --remote focus docs/plan.md   # switch to the file's tab; fails if it is not open
+```
+
+If no instance is running, `--remote open` starts one with those files
+— so it is safe to use unconditionally. `--remote focus` never opens a
+file in an existing instance; it only moves between what is already
+there.
+
+Each instance listens on a Unix socket named after its pid, under
+`$XDG_RUNTIME_DIR/mado` (a private directory under the system temp dir
+when `XDG_RUNTIME_DIR` is unset). Commands go to the most recently
+started instance that answers; set `MADO_SOCKET` to a socket path to
+pin both ends to one instance:
+
+```sh
+MADO_SOCKET=/tmp/mado-notes.sock mado notes/     # this instance…
+MADO_SOCKET=/tmp/mado-notes.sock mado --remote open notes/today.md   # …gets the file
+```
 
 ## Configuration
 

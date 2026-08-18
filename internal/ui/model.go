@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"image"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -20,6 +21,7 @@ import (
 
 	"github.com/hidekingerz/mado/internal/config"
 	"github.com/hidekingerz/mado/internal/filetree"
+	"github.com/hidekingerz/mado/internal/remote"
 )
 
 type focusArea int
@@ -123,6 +125,10 @@ type Model struct {
 	active     int
 	tabRegions []tabRegion
 
+	// srv is nil unless this instance accepts remote commands; when
+	// set, `mado --remote …` opens files in this window.
+	srv *remote.Server
+
 	styles styles
 }
 
@@ -184,7 +190,7 @@ func New(cfg config.Config, rootDir string, initialFiles []string) (Model, error
 	}
 	m.items = filetree.Flatten(m.root)
 	for _, f := range initialFiles {
-		m.openFile(f)
+		_ = m.openFile(f)
 	}
 	if len(m.tabs) > 0 {
 		m.focus = focusContent
@@ -192,8 +198,65 @@ func New(cfg config.Config, rootDir string, initialFiles []string) (Model, error
 	return m, nil
 }
 
+// Serve routes commands from `mado --remote …` into this instance.
+func (m Model) Serve(s *remote.Server) Model {
+	m.srv = s
+	return m
+}
+
+// remoteRequestMsg carries one command from another process.
+type remoteRequestMsg struct{ req *remote.Request }
+
+// waitForRequest blocks until another process sends a command. A
+// closed server ends the loop.
+func waitForRequest(s *remote.Server) tea.Cmd {
+	return func() tea.Msg {
+		req, ok := s.Next()
+		if !ok {
+			return nil
+		}
+		return remoteRequestMsg{req}
+	}
+}
+
+// handleRemote carries out one remote command and answers the process
+// that sent it.
+func (m *Model) handleRemote(req *remote.Request) {
+	switch req.Cmd {
+	case remote.CmdOpen:
+		if err := m.openFile(req.Path); err != nil {
+			req.Respond(err)
+			return
+		}
+		// The file is the point of the command: show it, whatever was
+		// on screen before.
+		m.showHelp = false
+		m.focus = focusContent
+		req.Respond(nil)
+	case remote.CmdFocus:
+		for i, t := range m.tabs {
+			if t.path == req.Path {
+				m.active = i
+				m.showHelp = false
+				m.focus = focusContent
+				m.ensureRendered(t)
+				req.Respond(nil)
+				return
+			}
+		}
+		req.Respond(fmt.Errorf("%s is not open", req.Path))
+	default:
+		req.Respond(fmt.Errorf("unknown remote command %q", req.Cmd))
+	}
+}
+
 // Init implements tea.Model.
-func (m Model) Init() tea.Cmd { return nil }
+func (m Model) Init() tea.Cmd {
+	if m.srv != nil {
+		return waitForRequest(m.srv)
+	}
+	return nil
+}
 
 // Update implements tea.Model.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -206,6 +269,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleKey(msg)
 	case tea.MouseMsg:
 		return m.handleMouse(msg)
+	case remoteRequestMsg:
+		m.handleRemote(msg.req)
+		return m, waitForRequest(m.srv)
 	}
 	return m, nil
 }
@@ -214,6 +280,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	k := m.keys
 	switch {
 	case key.Matches(msg, k.Quit):
+		if m.srv != nil {
+			m.srv.Close()
+		}
 		return m, tea.Quit
 	case key.Matches(msg, k.Help):
 		m.showHelp = !m.showHelp
@@ -383,23 +452,31 @@ func (m *Model) openSelected() {
 		m.clampTree()
 		return
 	}
-	m.openFile(n.Path)
+	_ = m.openFile(n.Path)
 	m.focus = focusContent
 }
 
 // openFile opens path in a new tab, or activates the existing tab.
-func (m *Model) openFile(path string) {
+// The error it returns is already shown in the status bar; callers
+// acting for another process report it there too.
+func (m *Model) openFile(path string) error {
+	// Tabs are identified by absolute path, so the same file named
+	// two ways — a relative command-line argument and the absolute
+	// path the sidebar or another process sends — is one tab.
+	if abs, err := filepath.Abs(path); err == nil {
+		path = abs
+	}
 	for i, t := range m.tabs {
 		if t.path == path {
 			m.active = i
 			m.ensureRendered(t)
-			return
+			return nil
 		}
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		m.statusMsg = err.Error()
-		return
+		return err
 	}
 	t := &tab{
 		path:  path,
@@ -412,6 +489,7 @@ func (m *Model) openFile(path string) {
 	m.layoutTabs()
 	m.ensureRendered(t)
 	m.statusMsg = ""
+	return nil
 }
 
 func (m *Model) closeTab(i int) {
