@@ -5,6 +5,13 @@
 # Every table and key is optional — unset values fall back to the
 # built-in defaults shown below.
 
+[general]
+# Re-read open files and the sidebar tree automatically when they
+# change on disk, instead of only on the reload key. Equivalent to the
+# --watch flag. Useful when another process (an editor, an agent) is
+# writing the files you are reading.
+watch = false
+
 [theme]
 # Glamour markdown style: "auto", "dark", "light", "dracula", "notty",
 # "ascii" — or a path to a custom glamour style JSON file.

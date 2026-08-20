@@ -37,6 +37,7 @@ func versionString() string {
 func main() {
 	configPath := flag.String("config", config.DefaultPath(), "path to config.toml")
 	style := flag.String("style", "", "glamour style (overrides config): auto, dark, light, dracula, … or a style JSON path")
+	watchFiles := flag.Bool("watch", false, "reload open files and the tree automatically when they change on disk")
 	remoteCmd := flag.String("remote", "", "hand the file arguments to a running mado instead of starting a new one: open or focus")
 	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Usage = func() {
@@ -59,6 +60,9 @@ func main() {
 	}
 	if *style != "" {
 		cfg.Theme.Style = *style
+	}
+	if *watchFiles {
+		cfg.General.Watch = true
 	}
 
 	if *remoteCmd != "" {
