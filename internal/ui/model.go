@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"image"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -20,6 +21,7 @@ import (
 
 	"github.com/hidekingerz/mado/internal/config"
 	"github.com/hidekingerz/mado/internal/filetree"
+	"github.com/hidekingerz/mado/internal/watch"
 )
 
 type focusArea int
@@ -123,6 +125,10 @@ type Model struct {
 	active     int
 	tabRegions []tabRegion
 
+	// watcher is nil unless auto-reload is enabled; when set, changes
+	// under the open files and the sidebar tree trigger a reload.
+	watcher *watch.Watcher
+
 	styles styles
 }
 
@@ -183,17 +189,71 @@ func New(cfg config.Config, rootDir string, initialFiles []string) (Model, error
 		},
 	}
 	m.items = filetree.Flatten(m.root)
+	if cfg.General.Watch {
+		w, err := watch.New(watch.DefaultDebounce)
+		if err != nil {
+			// Auto-reload is a convenience; losing it should not stop
+			// mado from opening the files.
+			m.statusMsg = "watch disabled: " + err.Error()
+		} else {
+			m.watcher = w
+		}
+	}
 	for _, f := range initialFiles {
 		m.openFile(f)
 	}
 	if len(m.tabs) > 0 {
 		m.focus = focusContent
 	}
+	m.syncWatch()
 	return m, nil
 }
 
+// fileChangedMsg reports that something under the watched directories
+// changed since the last reload.
+type fileChangedMsg struct{}
+
+// waitForChange blocks until the watcher reports a change. A closed
+// channel (the watcher was shut down) ends the loop.
+func waitForChange(w *watch.Watcher) tea.Cmd {
+	return func() tea.Msg {
+		if _, ok := <-w.Events(); !ok {
+			return nil
+		}
+		return fileChangedMsg{}
+	}
+}
+
+// syncWatch points the watcher at the directories mado is showing: the
+// parent of every open file, plus the tree root and every expanded
+// directory, so that new and removed files are noticed too.
+func (m *Model) syncWatch() {
+	if m.watcher == nil {
+		return
+	}
+	dirs := map[string]bool{m.root.Path: true}
+	for _, it := range m.items {
+		if it.Node.IsDir && it.Node.Expanded {
+			dirs[it.Node.Path] = true
+		}
+	}
+	for _, t := range m.tabs {
+		dirs[filepath.Dir(t.path)] = true
+	}
+	list := make([]string, 0, len(dirs))
+	for d := range dirs {
+		list = append(list, d)
+	}
+	m.watcher.SetDirs(list)
+}
+
 // Init implements tea.Model.
-func (m Model) Init() tea.Cmd { return nil }
+func (m Model) Init() tea.Cmd {
+	if m.watcher != nil {
+		return waitForChange(m.watcher)
+	}
+	return nil
+}
 
 // Update implements tea.Model.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -206,6 +266,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleKey(msg)
 	case tea.MouseMsg:
 		return m.handleMouse(msg)
+	case fileChangedMsg:
+		m.reload()
+		return m, waitForChange(m.watcher)
 	}
 	return m, nil
 }
@@ -214,6 +277,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	k := m.keys
 	switch {
 	case key.Matches(msg, k.Quit):
+		if m.watcher != nil {
+			m.watcher.Close()
+		}
 		return m, tea.Quit
 	case key.Matches(msg, k.Help):
 		m.showHelp = !m.showHelp
@@ -381,6 +447,7 @@ func (m *Model) openSelected() {
 		}
 		m.items = filetree.Flatten(m.root)
 		m.clampTree()
+		m.syncWatch()
 		return
 	}
 	m.openFile(n.Path)
@@ -411,6 +478,7 @@ func (m *Model) openFile(path string) {
 	m.active = len(m.tabs) - 1
 	m.layoutTabs()
 	m.ensureRendered(t)
+	m.syncWatch()
 	m.statusMsg = ""
 }
 
@@ -429,6 +497,7 @@ func (m *Model) closeTab(i int) {
 		}
 	}
 	m.layoutTabs()
+	m.syncWatch()
 }
 
 func (m *Model) switchTab(delta int) {
@@ -467,19 +536,28 @@ func (m *Model) reloadTree() {
 	}
 	m.clampTree()
 	m.scrollCursorIntoView()
+	m.syncWatch()
 }
 
+// reload re-reads the tree and the contents of every open tab.
+// Background tabs are only marked dirty: they re-render the next time
+// they are shown, so a reload costs one render however many tabs are
+// open. Scroll positions survive, since ensureRendered restores them.
 func (m *Model) reload() {
 	m.reloadTree()
-	if t := m.activeTab(); t != nil {
-		if data, err := os.ReadFile(t.path); err == nil {
-			t.setContent(data, m.profile)
-			t.rendered = 0
-			m.ensureRendered(t)
-		} else {
-			m.statusMsg = err.Error()
+	active := m.activeTab()
+	for _, t := range m.tabs {
+		data, err := os.ReadFile(t.path)
+		if err != nil {
+			if t == active {
+				m.statusMsg = err.Error()
+			}
+			continue
 		}
+		t.setContent(data, m.profile)
+		t.rendered = 0
 	}
+	m.ensureRendered(active)
 }
 
 // ensureRendered (re-)renders a tab's content at the current viewport

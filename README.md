@@ -14,6 +14,7 @@
 - **Sidebar file tree** rooted at the current directory (lazy-loaded, collapsible; `a` toggles between markdown-only and all files)
 - **Multiple open files** — each file opens in its own tab
 - **Mouse support** — click files to open, click tabs to switch, click `✕` to close, scroll wheel in both panes
+- **Auto-reload** — `--watch` re-renders open files as they change on disk, so mado can sit in a pane as a live view
 - **TOML configuration** — `~/.config/mado/config.toml`
 - **Configurable keyboard shortcuts** — every action can be rebound
 - **Theme customization** — Glamour styles (`auto`, `dark`, `light`, `dracula`, or your own style JSON) plus UI colors and a `source_style` for source-mode highlighting
@@ -42,6 +43,7 @@ go build -o mado .
 mado                  # browse markdown files under the current directory
 mado docs/            # root the sidebar at docs/
 mado README.md a.md   # open files in tabs immediately
+mado --watch TASKS.md # reload automatically when the file changes
 mado -style dracula   # override the markdown theme
 mado -config my.toml  # use an alternate config file
 mado -version         # print the version
@@ -60,6 +62,19 @@ There are two ways to look at a file, switched with `m`:
 
 The startup mode can be set with `default_mode = "source"` in the
 config.
+
+### Auto-reload
+
+By default files are re-read only when you press `r` / `F5`. With
+`--watch` (or `watch = true` in the config) mado watches the open files
+and the sidebar directories and reloads them as soon as they change,
+keeping your scroll position. `[WATCH]` in the status bar shows it is
+on.
+
+This is what makes mado usable as a live dashboard: leave it open on a
+plan or a log file that another process keeps rewriting, and the pane
+follows along. Rapid successive writes are coalesced, so a burst of
+saves costs one reload.
 
 ### Default key bindings
 
@@ -94,6 +109,9 @@ back to the defaults. See [`config.example.toml`](config.example.toml)
 for the full annotated reference.
 
 ```toml
+[general]
+watch = false              # true = auto-reload files when they change
+
 [theme]
 style = "dracula"          # glamour style name or path to a style JSON
 accent_color = "#7C6AEF"

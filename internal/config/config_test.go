@@ -135,3 +135,20 @@ func TestFileColorKey(t *testing.T) {
 		t.Errorf("FileColor = %q, want #AABBCC", cfg.Theme.FileColor)
 	}
 }
+
+func TestLoadGeneralWatch(t *testing.T) {
+	if Default().General.Watch {
+		t.Error("watch should be off by default")
+	}
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte("[general]\nwatch = true\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !cfg.General.Watch {
+		t.Error("watch = true was not picked up from the config")
+	}
+}

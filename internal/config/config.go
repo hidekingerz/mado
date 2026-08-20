@@ -10,9 +10,17 @@ import (
 
 // Config is the root of mado's configuration.
 type Config struct {
+	General General `toml:"general"`
 	Theme   Theme   `toml:"theme"`
 	Sidebar Sidebar `toml:"sidebar"`
 	Keys    Keys    `toml:"keys"`
+}
+
+// General holds settings that are not tied to one pane.
+type General struct {
+	// Watch re-reads open files and the sidebar tree automatically
+	// when they change on disk, instead of only on the reload key.
+	Watch bool `toml:"watch"`
 }
 
 // Theme controls markdown rendering style and UI colors.
@@ -69,6 +77,9 @@ type Keys struct {
 // Default returns the built-in configuration.
 func Default() Config {
 	return Config{
+		General: General{
+			Watch: false,
+		},
 		Theme: Theme{
 			Style:       "auto",
 			DefaultMode: "reader",
@@ -146,6 +157,8 @@ func Load(path string) (Config, error) {
 }
 
 func merge(dst *Config, src Config) {
+	dst.General.Watch = dst.General.Watch || src.General.Watch
+
 	mergeStr(&dst.Theme.Style, src.Theme.Style)
 	mergeStr(&dst.Theme.DefaultMode, src.Theme.DefaultMode)
 	mergeStr(&dst.Theme.SourceStyle, src.Theme.SourceStyle)

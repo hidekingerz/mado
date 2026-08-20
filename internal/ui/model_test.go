@@ -1,10 +1,12 @@
 package ui
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -13,6 +15,13 @@ import (
 )
 
 func testModel(t *testing.T, files map[string]string, open ...string) Model {
+	t.Helper()
+	cfg := config.Default()
+	cfg.Theme.Style = "notty" // deterministic in tests, no terminal probing
+	return testModelWithConfig(t, cfg, files, open...)
+}
+
+func testModelWithConfig(t *testing.T, cfg config.Config, files map[string]string, open ...string) Model {
 	t.Helper()
 	dir := t.TempDir()
 	for rel, content := range files {
@@ -28,11 +37,12 @@ func testModel(t *testing.T, files map[string]string, open ...string) Model {
 	for _, f := range open {
 		abs = append(abs, filepath.Join(dir, f))
 	}
-	cfg := config.Default()
-	cfg.Theme.Style = "notty" // deterministic in tests, no terminal probing
 	m, err := New(cfg, dir, abs)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if m.watcher != nil {
+		t.Cleanup(func() { m.watcher.Close() })
 	}
 	resized, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	return resized.(Model)
@@ -349,5 +359,157 @@ func TestUnfocusedCursorRowStyle(t *testing.T) {
 	}
 	if !m.styles.cursor.GetBold() {
 		t.Error("unfocused cursor row style should be bold")
+	}
+}
+
+// ── auto-reload (--watch) ───────────────────────────────────────────
+
+func watchModel(t *testing.T, files map[string]string, open ...string) Model {
+	t.Helper()
+	cfg := config.Default()
+	cfg.Theme.Style = "notty"
+	cfg.General.Watch = true
+	return testModelWithConfig(t, cfg, files, open...)
+}
+
+func TestWatchOffByDefault(t *testing.T) {
+	m := testModel(t, map[string]string{"a.md": "# A"}, "a.md")
+	if m.watcher != nil {
+		t.Error("watcher should not start unless watch is enabled")
+	}
+	if m.Init() != nil {
+		t.Error("Init should have nothing to wait on without a watcher")
+	}
+	if strings.Contains(m.View(), "[WATCH]") {
+		t.Error("status bar should not advertise watching when it is off")
+	}
+}
+
+func TestWatchEnabledStartsWatching(t *testing.T) {
+	m := watchModel(t, map[string]string{"a.md": "# A"}, "a.md")
+	if m.watcher == nil {
+		t.Fatal("watch enabled but no watcher started")
+	}
+	if m.Init() == nil {
+		t.Error("Init should wait for changes when watching")
+	}
+	if !strings.Contains(m.View(), "[WATCH]") {
+		t.Error("status bar should show that watching is on")
+	}
+}
+
+func TestFileChangedMsgRerendersActiveTab(t *testing.T) {
+	m := watchModel(t, map[string]string{"a.md": "# before"}, "a.md")
+	if err := os.WriteFile(m.tabs[0].path, []byte("# after"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	next, cmd := m.Update(fileChangedMsg{})
+	m = next.(Model)
+	if m.tabs[0].raw != "# after" {
+		t.Errorf("tab content = %q, want %q", m.tabs[0].raw, "# after")
+	}
+	if !strings.Contains(m.tabs[0].vp.View(), "after") {
+		t.Error("viewport still shows the old render")
+	}
+	if cmd == nil {
+		t.Error("the model should keep waiting for the next change")
+	}
+}
+
+func TestFileChangedMsgKeepsScrollPosition(t *testing.T) {
+	var long strings.Builder
+	for i := 0; i < 200; i++ {
+		fmt.Fprintf(&long, "line %d\n\n", i)
+	}
+	m := watchModel(t, map[string]string{"a.md": long.String()}, "a.md")
+	m.tabs[0].vp.SetYOffset(40)
+	want := m.tabs[0].vp.YOffset
+	if want == 0 {
+		t.Fatal("setup: viewport did not scroll")
+	}
+
+	if err := os.WriteFile(m.tabs[0].path, []byte(long.String()+"\nlast\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m = update(t, m, fileChangedMsg{})
+	if got := m.tabs[0].vp.YOffset; got != want {
+		t.Errorf("scroll offset = %d after reload, want %d", got, want)
+	}
+}
+
+func TestFileChangedMsgPicksUpNewFilesInTheTree(t *testing.T) {
+	m := watchModel(t, map[string]string{"a.md": "# A"})
+	rows := len(m.items)
+	if err := os.WriteFile(filepath.Join(m.root.Path, "b.md"), []byte("# B"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m = update(t, m, fileChangedMsg{})
+	if len(m.items) != rows+1 {
+		t.Errorf("tree rows = %d after reload, want %d", len(m.items), rows+1)
+	}
+}
+
+// A reload refreshes every open tab, not just the visible one, so
+// switching to a background tab never shows content from before the
+// reload.
+func TestReloadRefreshesBackgroundTabs(t *testing.T) {
+	m := testModel(t, map[string]string{"a.md": "# A", "b.md": "# B"}, "a.md", "b.md")
+	background := m.tabs[0]
+	if err := os.WriteFile(background.path, []byte("# A2"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	if background.raw != "# A2" {
+		t.Errorf("background tab content = %q, want %q", background.raw, "# A2")
+	}
+
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyTab}) // back to a.md
+	if !strings.Contains(m.tabs[m.active].vp.View(), "A2") {
+		t.Error("background tab was not re-rendered when it became active")
+	}
+}
+
+func TestQuitStopsTheWatcher(t *testing.T) {
+	m := watchModel(t, map[string]string{"a.md": "# A"}, "a.md")
+	events := m.watcher.Events()
+	update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	select {
+	case _, ok := <-events:
+		if ok {
+			t.Fatal("expected the watcher to be closed")
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("watcher was not closed on quit")
+	}
+}
+
+// The watched set must follow what is on screen: the tree root, the
+// directories expanded in the sidebar, and the parents of open files.
+func TestWatchCoversOpenFilesAndExpandedDirs(t *testing.T) {
+	m := watchModel(t, map[string]string{"docs/a.md": "# A", "top.md": "# T"})
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyEnter}) // expand docs/
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyDown})
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyEnter}) // open docs/a.md
+	if len(m.tabs) != 1 {
+		t.Fatalf("setup: %d tabs, want 1", len(m.tabs))
+	}
+
+	for _, path := range []string{
+		filepath.Join(m.root.Path, "top.md"),
+		filepath.Join(m.root.Path, "docs", "a.md"),
+	} {
+		if err := os.WriteFile(path, []byte("# changed"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case _, ok := <-m.watcher.Events():
+			if !ok {
+				t.Fatalf("%s: watcher closed", path)
+			}
+		case <-time.After(3 * time.Second):
+			t.Fatalf("no change reported for %s", path)
+		}
 	}
 }

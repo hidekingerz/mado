@@ -207,6 +207,9 @@ func (m Model) renderHelp(w, h int) string {
 
 func (m Model) renderStatusBar() string {
 	left := " "
+	if m.watcher != nil {
+		left += "[WATCH] "
+	}
 	if t := m.activeTab(); t != nil {
 		left += "[" + m.mode.String() + "]  " + t.path
 		left += fmt.Sprintf("  %3.0f%%", t.vp.ScrollPercent()*100)
