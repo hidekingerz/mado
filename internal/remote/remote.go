@@ -81,7 +81,7 @@ type Server struct {
 // socket file at path is replaced: it belongs to an instance that did
 // not clean up after itself.
 func Listen(path string) (*Server, error) {
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+	if err := secureDir(filepath.Dir(path)); err != nil {
 		return nil, err
 	}
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
@@ -91,8 +91,10 @@ func Listen(path string) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Belt and braces: the directory is already private, but the
-	// socket should not be reachable by other users either.
+	// Belt and braces. secureDir has already established that nobody
+	// else can reach into the directory, which also covers the moment
+	// between bind and chmod when the socket still carries whatever
+	// mode the umask gave it.
 	_ = os.Chmod(path, 0o600)
 
 	s := &Server{
@@ -103,6 +105,40 @@ func Listen(path string) (*Server, error) {
 	}
 	go s.accept()
 	return s, nil
+}
+
+// secureDir creates the socket directory and refuses one that another
+// user could have prepared. Without XDG_RUNTIME_DIR the default
+// directory sits in the shared system temp dir under a name derived
+// from the uid, so a local attacker can create it first: MkdirAll is
+// happy with a directory that already exists, whoever owns it and
+// whatever its mode. A directory that is not ours, or that anyone else
+// can write to, would let them plant a socket for clients to find.
+func secureDir(dir string) error {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	info, err := os.Lstat(dir)
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsDir() {
+		return fmt.Errorf("%s is not a directory", dir)
+	}
+	ours, err := ownedByUs(info)
+	if err != nil {
+		return err
+	}
+	if !ours {
+		return fmt.Errorf("%s belongs to another user", dir)
+	}
+	// Writable is what matters: that is what lets someone else drop a
+	// socket in for clients to find. A directory others can merely
+	// list is harmless, since the socket itself is ours and 0600.
+	if perm := info.Mode().Perm(); perm&0o022 != 0 {
+		return fmt.Errorf("%s is writable by other users (mode %04o)", dir, perm)
+	}
+	return nil
 }
 
 // Path is the socket the server is listening on.
@@ -248,6 +284,15 @@ func candidates(dir string) []string {
 		}
 		info, err := e.Info()
 		if err != nil {
+			continue
+		}
+		// Only a real socket owned by us can be one of our instances.
+		// Anything else in the directory — a regular file, a symlink,
+		// another user's socket — is not ours to talk to or tidy up.
+		if info.Mode()&os.ModeSocket == 0 {
+			continue
+		}
+		if ours, err := ownedByUs(info); err != nil || !ours {
 			continue
 		}
 		socks = append(socks, sock{filepath.Join(dir, e.Name()), info.ModTime()})

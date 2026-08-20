@@ -2,6 +2,7 @@ package remote
 
 import (
 	"errors"
+	"net"
 	"os"
 	"path/filepath"
 	"testing"
@@ -87,12 +88,27 @@ func TestSendWithoutASocketDirectory(t *testing.T) {
 
 // A crashed instance leaves its socket file behind. It must not stop
 // the search, and it should not be left to slow down the next one.
+// leaveStaleSocket binds and closes without unlinking, leaving the
+// socket file a killed instance would leave behind: a real socket that
+// refuses connections.
+func leaveStaleSocket(t *testing.T, path string) {
+	t.Helper()
+	ln, err := net.Listen("unix", path)
+	if err != nil {
+		t.Fatalf("listen %s: %v", path, err)
+	}
+	if unix, ok := ln.(*net.UnixListener); ok {
+		unix.SetUnlinkOnClose(false)
+	}
+	if err := ln.Close(); err != nil {
+		t.Fatalf("close %s: %v", path, err)
+	}
+}
+
 func TestStaleSocketIsSkippedAndRemoved(t *testing.T) {
 	dir := t.TempDir()
 	stale := filepath.Join(dir, "999.sock")
-	if err := os.WriteFile(stale, nil, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	leaveStaleSocket(t, stale)
 	s := listen(t, filepath.Join(dir, "1.sock"))
 	answer(t, s, nil)
 	// The stale entry sorts first, so it is tried first.
@@ -232,5 +248,118 @@ func TestDefaultPathIsPerProcess(t *testing.T) {
 	}
 	if filepath.Ext(got) != ".sock" {
 		t.Errorf("DefaultPath = %q, want a .sock file", got)
+	}
+}
+
+// ── the socket directory is a trust boundary ────────────────────────
+
+// Without XDG_RUNTIME_DIR the default directory lives in the shared
+// system temp dir under a predictable name, so another local user can
+// create it first. Listening in a directory they can write to would let
+// them plant a socket for clients to find.
+func TestListenRefusesADirectoryOthersCanWriteTo(t *testing.T) {
+	dir := t.TempDir()
+	sockets := filepath.Join(dir, "mado")
+	if err := os.Mkdir(sockets, 0o777); err != nil {
+		t.Fatal(err)
+	}
+	// Mkdir applies the umask, so set the mode we actually want to test.
+	if err := os.Chmod(sockets, 0o777); err != nil {
+		t.Fatal(err)
+	}
+
+	s, err := Listen(filepath.Join(sockets, "1.sock"))
+	if err == nil {
+		s.Close()
+		t.Fatal("expected Listen to refuse a world-writable directory")
+	}
+}
+
+// A directory others can list but not write to is fine: the socket in
+// it is ours and 0600, so there is nothing for them to do there.
+func TestListenAcceptsAReadableDirectory(t *testing.T) {
+	dir := t.TempDir()
+	sockets := filepath.Join(dir, "mado")
+	if err := os.Mkdir(sockets, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(sockets, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	listen(t, filepath.Join(sockets, "1.sock"))
+}
+
+func TestListenRefusesAGroupWritableDirectory(t *testing.T) {
+	dir := t.TempDir()
+	sockets := filepath.Join(dir, "mado")
+	if err := os.Mkdir(sockets, 0o770); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(sockets, 0o770); err != nil {
+		t.Fatal(err)
+	}
+
+	s, err := Listen(filepath.Join(sockets, "1.sock"))
+	if err == nil {
+		s.Close()
+		t.Fatal("expected Listen to refuse a group-writable directory")
+	}
+}
+
+func TestListenAcceptsAPrivateDirectory(t *testing.T) {
+	dir := t.TempDir()
+	sockets := filepath.Join(dir, "mado")
+	if err := os.Mkdir(sockets, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	listen(t, filepath.Join(sockets, "1.sock"))
+}
+
+func TestListenCreatesThePrivateDirectoryItself(t *testing.T) {
+	sockets := filepath.Join(t.TempDir(), "mado")
+	listen(t, filepath.Join(sockets, "1.sock"))
+
+	info, err := os.Stat(sockets)
+	if err != nil {
+		t.Fatalf("directory not created: %v", err)
+	}
+	if perm := info.Mode().Perm(); perm&0o077 != 0 {
+		t.Errorf("directory mode = %04o, want no access for other users", perm)
+	}
+}
+
+func TestListenRefusesADirectoryOwnedByAnotherUser(t *testing.T) {
+	dir := t.TempDir()
+	sockets := filepath.Join(dir, "mado")
+	if err := os.Mkdir(sockets, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	// Only root can hand a directory to somebody else; elsewhere the
+	// ownership check has nothing to act on.
+	if err := os.Chown(sockets, os.Getuid()+1, os.Getgid()); err != nil {
+		t.Skipf("cannot change ownership: %v", err)
+	}
+
+	s, err := Listen(filepath.Join(sockets, "1.sock"))
+	if err == nil {
+		s.Close()
+		t.Fatal("expected Listen to refuse a directory owned by another user")
+	}
+}
+
+// Only a real socket is one of our instances. A plain file with the
+// right name is somebody else's doing, and neither dialled nor deleted.
+func TestSendIgnoresANonSocketNamedLikeOne(t *testing.T) {
+	dir := t.TempDir()
+	impostor := filepath.Join(dir, "1.sock")
+	if err := os.WriteFile(impostor, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Send(dir, CmdOpen, "/tmp/a.md"); !errors.Is(err, ErrNoInstance) {
+		t.Errorf("Send = %v, want ErrNoInstance", err)
+	}
+	if _, err := os.Stat(impostor); err != nil {
+		t.Errorf("a file that is not our socket was removed: %v", err)
 	}
 }

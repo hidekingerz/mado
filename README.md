@@ -130,6 +130,15 @@ MADO_SOCKET=/tmp/mado-notes.sock mado notes/     # this instance…
 MADO_SOCKET=/tmp/mado-notes.sock mado --remote open notes/today.md   # …gets the file
 ```
 
+The socket directory is a trust boundary: anything a command opens, it
+opens as you. mado creates it private and, if it is already there,
+checks that it belongs to you and that no other user can write to it —
+on a shared machine with no `XDG_RUNTIME_DIR`, the directory name is
+predictable enough for someone else to create first and plant a socket
+in. A directory that does not pass turns remote commands off for that
+instance, with a line on stderr saying why; everything else about mado
+still works.
+
 ## Configuration
 
 mado reads `$XDG_CONFIG_HOME/mado/config.toml` (default
