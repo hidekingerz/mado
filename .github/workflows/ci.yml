@@ -29,6 +29,16 @@ jobs:
       - name: go vet
         run: go vet ./...
 
+      # The release runs `go mod tidy` as a goreleaser before-hook and
+      # then refuses to publish from a dirty tree, so an untidy go.mod
+      # or go.sum fails the release rather than the build — on a tag,
+      # long after the commit that caused it. Checking here says it on
+      # the pull request instead.
+      - name: go mod tidy
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+
       - name: Build
         run: go build ./...
 
