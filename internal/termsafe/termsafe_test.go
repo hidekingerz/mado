@@ -1,15 +1,15 @@
-package ui
+package termsafe
 
 import "testing"
 
-func TestSanitizeTextKeepsOrdinaryText(t *testing.T) {
+func TestStringKeepsOrdinaryText(t *testing.T) {
 	in := "# Heading\n\nsome *text* with a tab\there\nand 日本語 ✓\n"
-	if got := sanitizeText(in); got != in {
-		t.Errorf("sanitizeText changed plain text:\n got %q\nwant %q", got, in)
+	if got := String(in); got != in {
+		t.Errorf("String changed plain text:\n got %q\nwant %q", got, in)
 	}
 }
 
-func TestSanitizeTextDefusesEscapeSequences(t *testing.T) {
+func TestStringDefusesEscapeSequences(t *testing.T) {
 	cases := []struct {
 		name string
 		in   string
@@ -23,17 +23,17 @@ func TestSanitizeTextDefusesEscapeSequences(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := sanitizeText(c.in); got != c.want {
-				t.Errorf("sanitizeText(%q) = %q, want %q", c.in, got, c.want)
+			if got := String(c.in); got != c.want {
+				t.Errorf("String(%q) = %q, want %q", c.in, got, c.want)
 			}
 		})
 	}
 }
 
-func TestSanitizeTextLeavesNoEscape(t *testing.T) {
-	out := sanitizeText("\x1b]0;title\x07\x1b[31mred\x1b[0m")
+func TestStringLeavesNoEscape(t *testing.T) {
+	out := String("\x1b]0;title\x07\x1b[31mred\x1b[0m")
 	for _, r := range out {
-		if isTerminalControl(r) {
+		if isControl(r) {
 			t.Fatalf("control character %q survived in %q", r, out)
 		}
 	}

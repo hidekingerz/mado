@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/hidekingerz/mado/internal/config"
+	"github.com/hidekingerz/mado/internal/remote"
 )
 
 func testModel(t *testing.T, files map[string]string, open ...string) Model {
@@ -511,6 +512,240 @@ func TestWatchCoversOpenFilesAndExpandedDirs(t *testing.T) {
 		case <-time.After(3 * time.Second):
 			t.Fatalf("no change reported for %s", path)
 		}
+	}
+}
+
+// ── remote commands (mado --remote …) ───────────────────────────────
+
+func serveModel(t *testing.T, m Model) (Model, *remote.Server) {
+	t.Helper()
+	srv, err := remote.Listen(filepath.Join(t.TempDir(), "mado.sock"))
+	if err != nil {
+		t.Fatalf("remote.Listen: %v", err)
+	}
+	t.Cleanup(func() { srv.Close() })
+	return m.Serve(srv), srv
+}
+
+// sendRemote drives a full round trip: another process sends a
+// command, the model handles it, and the sender's answer comes back.
+func sendRemote(t *testing.T, m Model, srv *remote.Server, cmd, path string) (Model, error) {
+	t.Helper()
+	answered := make(chan error, 1)
+	go func() { answered <- remote.Send(filepath.Dir(srv.Path()), cmd, path) }()
+
+	req, ok := srv.Next()
+	if !ok {
+		t.Fatal("server closed before the request arrived")
+	}
+	next, _ := m.Update(remoteRequestMsg{req})
+
+	select {
+	case err := <-answered:
+		return next.(Model), err
+	case <-time.After(5 * time.Second):
+		t.Fatal("the sender never got an answer")
+		return m, nil
+	}
+}
+
+func TestNoRemoteServerByDefault(t *testing.T) {
+	m := testModel(t, map[string]string{"a.md": "# A"})
+	if m.srv != nil {
+		t.Error("a model should not serve remote commands until it is given a server")
+	}
+	if m.Init() != nil {
+		t.Error("Init should have nothing to wait on without a server")
+	}
+}
+
+func TestRemoteOpenAddsATab(t *testing.T) {
+	m := testModel(t, map[string]string{"a.md": "# A", "b.md": "# B"}, "a.md")
+	m, srv := serveModel(t, m)
+
+	path := filepath.Join(m.root.Path, "b.md")
+	m, err := sendRemote(t, m, srv, remote.CmdOpen, path)
+	if err != nil {
+		t.Fatalf("remote open: %v", err)
+	}
+	if len(m.tabs) != 2 {
+		t.Fatalf("tabs = %d, want 2", len(m.tabs))
+	}
+	if m.tabs[m.active].path != path {
+		t.Errorf("active tab = %q, want %q", m.tabs[m.active].path, path)
+	}
+	if m.focus != focusContent {
+		t.Error("a remotely opened file should take the focus")
+	}
+}
+
+func TestRemoteOpenReusesTheExistingTab(t *testing.T) {
+	m := testModel(t, map[string]string{"a.md": "# A", "b.md": "# B"}, "a.md", "b.md")
+	m, srv := serveModel(t, m)
+	if m.active != 1 {
+		t.Fatalf("setup: active = %d, want 1", m.active)
+	}
+
+	path := filepath.Join(m.root.Path, "a.md")
+	m, err := sendRemote(t, m, srv, remote.CmdOpen, path)
+	if err != nil {
+		t.Fatalf("remote open: %v", err)
+	}
+	if len(m.tabs) != 2 {
+		t.Errorf("tabs = %d, want 2 — the file was already open", len(m.tabs))
+	}
+	if m.active != 0 {
+		t.Errorf("active = %d, want the tab that already held the file", m.active)
+	}
+}
+
+func TestRemoteOpenReportsAnUnreadableFile(t *testing.T) {
+	m := testModel(t, map[string]string{"a.md": "# A"}, "a.md")
+	m, srv := serveModel(t, m)
+
+	m, err := sendRemote(t, m, srv, remote.CmdOpen, filepath.Join(m.root.Path, "gone.md"))
+	if err == nil {
+		t.Fatal("expected the sender to be told the file could not be opened")
+	}
+	if len(m.tabs) != 1 {
+		t.Errorf("tabs = %d, want 1 — nothing should have been added", len(m.tabs))
+	}
+}
+
+func TestRemoteFocusSwitchesTabs(t *testing.T) {
+	m := testModel(t, map[string]string{"a.md": "# A", "b.md": "# B"}, "a.md", "b.md")
+	m, srv := serveModel(t, m)
+
+	m, err := sendRemote(t, m, srv, remote.CmdFocus, filepath.Join(m.root.Path, "a.md"))
+	if err != nil {
+		t.Fatalf("remote focus: %v", err)
+	}
+	if m.active != 0 {
+		t.Errorf("active = %d, want 0", m.active)
+	}
+	if m.focus != focusContent {
+		t.Error("focusing a tab should move the focus to the content pane")
+	}
+}
+
+// focus never opens anything: it is for pointing an instance at a file
+// it is already showing.
+func TestRemoteFocusFailsForAClosedFile(t *testing.T) {
+	m := testModel(t, map[string]string{"a.md": "# A", "b.md": "# B"}, "a.md")
+	m, srv := serveModel(t, m)
+
+	m, err := sendRemote(t, m, srv, remote.CmdFocus, filepath.Join(m.root.Path, "b.md"))
+	if err == nil {
+		t.Fatal("expected focus on an unopened file to fail")
+	}
+	if len(m.tabs) != 1 {
+		t.Errorf("tabs = %d, want 1 — focus must not open files", len(m.tabs))
+	}
+}
+
+func TestRemoteUnknownCommand(t *testing.T) {
+	m := testModel(t, map[string]string{"a.md": "# A"}, "a.md")
+	m, srv := serveModel(t, m)
+
+	if _, err := sendRemote(t, m, srv, "explode", filepath.Join(m.root.Path, "a.md")); err == nil {
+		t.Fatal("expected an unknown command to be refused")
+	}
+}
+
+func TestQuitClosesTheRemoteServer(t *testing.T) {
+	m := testModel(t, map[string]string{"a.md": "# A"}, "a.md")
+	m, srv := serveModel(t, m)
+	if m.Init() == nil {
+		t.Error("Init should wait for remote commands when serving")
+	}
+
+	update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	if _, err := os.Stat(srv.Path()); !os.IsNotExist(err) {
+		t.Errorf("socket left behind after quit (stat err = %v)", err)
+	}
+}
+
+// The sidebar and remote commands name files by absolute path, the
+// command line usually by a relative one. They must land on one tab.
+func TestOpenFileIdentifiesTabsByAbsolutePath(t *testing.T) {
+	m := testModel(t, map[string]string{"a.md": "# A"})
+	t.Chdir(m.root.Path)
+
+	if err := m.openFile("a.md"); err != nil {
+		t.Fatalf("open by relative path: %v", err)
+	}
+	if err := m.openFile(filepath.Join(m.root.Path, "a.md")); err != nil {
+		t.Fatalf("open by absolute path: %v", err)
+	}
+	if len(m.tabs) != 1 {
+		t.Fatalf("tabs = %d, want 1 — the same file named two ways", len(m.tabs))
+	}
+	if !filepath.IsAbs(m.tabs[0].path) {
+		t.Errorf("tab path = %q, want an absolute path", m.tabs[0].path)
+	}
+}
+
+func TestRemoteFocusFindsAFileOpenedByRelativePath(t *testing.T) {
+	m := testModel(t, map[string]string{"a.md": "# A"})
+	t.Chdir(m.root.Path)
+	if err := m.openFile("a.md"); err != nil {
+		t.Fatal(err)
+	}
+	m, srv := serveModel(t, m)
+
+	if _, err := sendRemote(t, m, srv, remote.CmdFocus, filepath.Join(m.root.Path, "a.md")); err != nil {
+		t.Errorf("remote focus: %v", err)
+	}
+}
+
+// ── watching and remote commands together ───────────────────────────
+
+// A file handed over by another process is watched like any other open
+// file, even when it sits outside the directories the sidebar tree is
+// already watching.
+func TestRemoteOpenStartsWatchingTheFile(t *testing.T) {
+	m := watchModel(t, map[string]string{"a.md": "# A", "sub/b.md": "# B"})
+	m, srv := serveModel(t, m)
+	// sub/ is collapsed in the sidebar, so nothing is watching it yet.
+	path := filepath.Join(m.root.Path, "sub", "b.md")
+
+	m, err := sendRemote(t, m, srv, remote.CmdOpen, path)
+	if err != nil {
+		t.Fatalf("remote open: %v", err)
+	}
+	if err := os.WriteFile(path, []byte("# B2"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case _, ok := <-m.watcher.Events():
+		if !ok {
+			t.Fatal("watcher closed")
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("a change to the remotely opened file was not reported")
+	}
+}
+
+func TestQuitStopsWatcherAndRemoteServerTogether(t *testing.T) {
+	m := watchModel(t, map[string]string{"a.md": "# A"}, "a.md")
+	m, srv := serveModel(t, m)
+	if m.Init() == nil {
+		t.Fatal("Init should wait on both the watcher and the remote server")
+	}
+	events := m.watcher.Events()
+
+	update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+
+	if _, err := os.Stat(srv.Path()); !os.IsNotExist(err) {
+		t.Errorf("socket left behind after quit (stat err = %v)", err)
+	}
+	select {
+	case _, ok := <-events:
+		if ok {
+			t.Error("expected the watcher to be closed too")
+		}
+	case <-time.After(3 * time.Second):
+		t.Error("watcher was not closed on quit")
 	}
 }
 

@@ -1,11 +1,13 @@
-package ui
+// Package termsafe prepares text that came from disk for display on a
+// terminal.
+package termsafe
 
 import (
 	"fmt"
 	"strings"
 )
 
-// sanitizeText makes a string safe to print to the terminal by
+// String makes a string safe to print to the terminal by
 // replacing the control characters a terminal acts on with a visible
 // caret escape, keeping only the whitespace that rendering needs.
 //
@@ -17,14 +19,14 @@ import (
 // writes the file chooses those bytes — an editor, a build, an agent —
 // and with auto-reload they take effect with no keystroke from the
 // reader.
-func sanitizeText(s string) string {
-	if !strings.ContainsFunc(s, isTerminalControl) {
+func String(s string) string {
+	if !strings.ContainsFunc(s, isControl) {
 		return s
 	}
 	var b strings.Builder
 	b.Grow(len(s))
 	for _, r := range s {
-		if !isTerminalControl(r) {
+		if !isControl(r) {
 			b.WriteRune(r)
 			continue
 		}
@@ -43,9 +45,9 @@ func sanitizeText(s string) string {
 	return b.String()
 }
 
-// isTerminalControl reports whether r is a control character a terminal
+// isControl reports whether r is a control character a terminal
 // would act on. Newline and tab are how text is laid out, so they stay.
-func isTerminalControl(r rune) bool {
+func isControl(r rune) bool {
 	switch {
 	case r == '\n' || r == '\t':
 		return false
