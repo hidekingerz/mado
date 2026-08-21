@@ -76,6 +76,13 @@ plan or a log file that another process keeps rewriting, and the pane
 follows along. Rapid successive writes are coalesced, so a burst of
 saves costs one reload.
 
+What a file says is shown, never obeyed: control characters are drawn
+in caret notation (`^[` for escape) rather than passed to the terminal,
+so a file cannot set your clipboard, rewrite the window title, or move
+the cursor to overwrite what is on screen. That holds for file names in
+the sidebar too. It is why an ANSI-coloured log shows its escape codes
+as text instead of colours.
+
 ### Default key bindings
 
 | Key                | Action                          |

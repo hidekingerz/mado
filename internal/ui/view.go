@@ -96,7 +96,9 @@ func (m Model) renderSidebar() string {
 				icon = "▸"
 			}
 		}
-		name := it.Node.Name
+		// A file name is chosen by whoever created the file, so it
+		// gets the same treatment as file contents.
+		name := sanitizeText(it.Node.Name)
 		if it.Node.IsDir {
 			name += "/"
 		}
@@ -222,6 +224,9 @@ func (m Model) renderStatusBar() string {
 	if m.statusMsg != "" {
 		left += "  ⚠ " + m.statusMsg
 	}
+	// left is built from paths and error messages, both of which carry
+	// names from disk.
+	left = sanitizeText(left)
 	right := m.keys.Help.Help().Key + " help │ " + m.keys.Quit.Help().Key + " quit "
 
 	gap := m.width - lipgloss.Width(left) - lipgloss.Width(right)
