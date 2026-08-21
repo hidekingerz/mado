@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/hidekingerz/mado/internal/termsafe"
 )
 
 const maxTabTitleWidth = 20
@@ -96,7 +98,9 @@ func (m Model) renderSidebar() string {
 				icon = "▸"
 			}
 		}
-		name := it.Node.Name
+		// A file name is chosen by whoever created the file, so it
+		// gets the same treatment as file contents.
+		name := termsafe.String(it.Node.Name)
 		if it.Node.IsDir {
 			name += "/"
 		}
@@ -222,6 +226,9 @@ func (m Model) renderStatusBar() string {
 	if m.statusMsg != "" {
 		left += "  ⚠ " + m.statusMsg
 	}
+	// left is built from paths and error messages, both of which carry
+	// names from disk.
+	left = termsafe.String(left)
 	right := m.keys.Help.Help().Key + " help │ " + m.keys.Quit.Help().Key + " quit "
 
 	gap := m.width - lipgloss.Width(left) - lipgloss.Width(right)

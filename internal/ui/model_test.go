@@ -748,3 +748,68 @@ func TestQuitStopsWatcherAndRemoteServerTogether(t *testing.T) {
 		t.Error("watcher was not closed on quit")
 	}
 }
+
+// ── terminal escapes in files are data, not commands ────────────────
+
+const osc52 = "\x1b]52;c;aGFjaw==\x07"
+
+func TestFileContentCannotDriveTheTerminal(t *testing.T) {
+	m := testModel(t, map[string]string{"a.md": "# Title\n\npwned " + osc52 + " more\n"}, "a.md")
+
+	if got := m.tabs[0].raw; strings.Contains(got, "\x1b") {
+		t.Errorf("tab content still holds an escape: %q", got)
+	}
+	view := m.tabs[0].vp.View()
+	if strings.Contains(view, "]52;c;") && !strings.Contains(view, "^[]52;c;") {
+		t.Error("the OSC 52 sequence reached the rendered view intact")
+	}
+	if !strings.Contains(view, "^[]52;c;") {
+		t.Errorf("expected the sequence to show as text, got %q", view)
+	}
+}
+
+func TestSourceModeCannotDriveTheTerminal(t *testing.T) {
+	m := testModel(t, map[string]string{"a.md": "pwned " + osc52 + " more\n"}, "a.md")
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'m'}})
+	if m.mode != modeSource {
+		t.Fatal("setup: not in source mode")
+	}
+	if view := m.tabs[0].vp.View(); !strings.Contains(view, "^[]52;c;") {
+		t.Errorf("expected the sequence to show as text in source mode, got %q", view)
+	}
+}
+
+// A reload picks up whatever the file says now, with no keystroke when
+// watching. Content that arrives that way gets the same treatment.
+func TestReloadedContentCannotDriveTheTerminal(t *testing.T) {
+	m := watchModel(t, map[string]string{"a.md": "# harmless\n"}, "a.md")
+	if err := os.WriteFile(m.tabs[0].path, []byte("pwned "+osc52+" more\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m = update(t, m, fileChangedMsg{})
+
+	if got := m.tabs[0].raw; strings.Contains(got, "\x1b") {
+		t.Errorf("reloaded content still holds an escape: %q", got)
+	}
+}
+
+// A file name is chosen by whoever created the file, and --watch makes
+// new files appear in the sidebar without anyone asking for them.
+func TestFileNamesCannotDriveTheTerminal(t *testing.T) {
+	m := testModel(t, map[string]string{"evil\x1b]0;pwn\x07.md": "# hi\n"})
+
+	view := m.View()
+	if strings.Contains(view, "\x1b]0;pwn") {
+		t.Error("a file name drove the terminal from the sidebar")
+	}
+	if !strings.Contains(view, "^[]0;pwn") {
+		t.Errorf("expected the name to show as text, got %q", view)
+	}
+}
+
+func TestStatusBarPathCannotDriveTheTerminal(t *testing.T) {
+	m := testModel(t, map[string]string{"evil\x1b]0;pwn\x07.md": "# hi\n"}, "evil\x1b]0;pwn\x07.md")
+	if strings.Contains(m.renderStatusBar(), "\x1b]0;pwn") {
+		t.Error("the status bar path drove the terminal")
+	}
+}

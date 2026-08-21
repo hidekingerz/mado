@@ -14,6 +14,7 @@ import (
 
 	"github.com/hidekingerz/mado/internal/config"
 	"github.com/hidekingerz/mado/internal/remote"
+	"github.com/hidekingerz/mado/internal/termsafe"
 	"github.com/hidekingerz/mado/internal/ui"
 )
 
@@ -55,8 +56,7 @@ func main() {
 
 	cfg, err := config.Load(*configPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "mado: bad config %s: %v\n", *configPath, err)
-		os.Exit(1)
+		fatal(fmt.Errorf("bad config %s: %w", *configPath, err))
 	}
 	if *style != "" {
 		cfg.Theme.Style = *style
@@ -68,8 +68,7 @@ func main() {
 	if *remoteCmd != "" {
 		sent, err := sendRemote(*remoteCmd, flag.Args())
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "mado: %v\n", err)
-			os.Exit(1)
+			fatal(err)
 		}
 		if sent {
 			return
@@ -82,8 +81,7 @@ func main() {
 	for _, arg := range flag.Args() {
 		info, err := os.Stat(arg)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "mado: %v\n", err)
-			os.Exit(1)
+			fatal(err)
 		}
 		if info.IsDir() {
 			rootDir = arg
@@ -94,11 +92,10 @@ func main() {
 
 	m, err := ui.New(cfg, rootDir, files)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "mado: %v\n", err)
-		os.Exit(1)
+		fatal(err)
 	}
 	if srv, err := remote.Listen(remote.DefaultPath()); err != nil {
-		fmt.Fprintf(os.Stderr, "mado: remote commands disabled: %v\n", err)
+		warn(fmt.Errorf("remote commands disabled: %w", err))
 	} else {
 		defer srv.Close()
 		m = m.Serve(srv)
@@ -109,9 +106,20 @@ func main() {
 		tea.WithMouseCellMotion(),
 	)
 	if _, err := p.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "mado: %v\n", err)
-		os.Exit(1)
+		fatal(err)
 	}
+}
+
+// fatal reports an error and exits. Diagnostics carry file names and
+// paths, chosen by whoever created them rather than by the person
+// reading them, so they are defused before reaching the terminal.
+func fatal(err error) {
+	warn(err)
+	os.Exit(1)
+}
+
+func warn(err error) {
+	fmt.Fprintln(os.Stderr, termsafe.String("mado: "+err.Error()))
 }
 
 // sendRemote hands the named files to a running instance. It reports

@@ -22,6 +22,7 @@ import (
 	"github.com/hidekingerz/mado/internal/config"
 	"github.com/hidekingerz/mado/internal/filetree"
 	"github.com/hidekingerz/mado/internal/remote"
+	"github.com/hidekingerz/mado/internal/termsafe"
 	"github.com/hidekingerz/mado/internal/watch"
 )
 
@@ -89,7 +90,9 @@ func (t *tab) setContent(data []byte, profile termenv.Profile) {
 		return
 	}
 	t.binary = false
-	t.raw = string(data)
+	// Whatever wrote this file chose these bytes; they are text to
+	// show, not instructions for the terminal.
+	t.raw = termsafe.String(string(data))
 }
 
 // tabRegion records where a tab was drawn in the tab bar, for mouse
@@ -548,7 +551,7 @@ func (m *Model) openFile(path string) error {
 	}
 	t := &tab{
 		path:  path,
-		title: baseName(path),
+		title: termsafe.String(baseName(path)),
 	}
 	t.setContent(data, m.profile)
 	t.vp = viewport.New(m.contentInnerWidth(), m.contentInnerHeight())
