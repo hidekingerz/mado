@@ -75,6 +75,41 @@ func (n *Node) Toggle(opts Options) error {
 	return nil
 }
 
+// Reveal expands every ancestor directory of path under n, loading
+// lazily as needed, so the entry becomes visible in the flattened
+// tree. Paths outside n and ancestors the walk cannot find (filtered,
+// hidden, or gone) end the walk quietly: revealing is best-effort and
+// never fails the caller's open. Only a directory read error during
+// expansion is returned.
+func (n *Node) Reveal(path string, opts Options) error {
+	rel, err := filepath.Rel(n.Path, path)
+	if err != nil || rel == "." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || rel == ".." {
+		return nil
+	}
+	segs := strings.Split(rel, string(filepath.Separator))
+	cur := n
+	for _, seg := range segs[:len(segs)-1] {
+		var next *Node
+		for _, c := range cur.Children {
+			if c.IsDir && c.Name == seg {
+				next = c
+				break
+			}
+		}
+		if next == nil {
+			return nil
+		}
+		if !next.loaded {
+			if err := next.load(opts); err != nil {
+				return err
+			}
+		}
+		next.Expanded = true
+		cur = next
+	}
+	return nil
+}
+
 // Reload re-reads the children of every loaded directory under n,
 // preserving expansion state at every depth where paths still exist —
 // including state remembered inside directories that are currently

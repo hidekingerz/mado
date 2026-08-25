@@ -264,3 +264,67 @@ func TestIsMarkdown(t *testing.T) {
 		}
 	}
 }
+
+func TestRevealExpandsAncestorsLazily(t *testing.T) {
+	dir := makeTree(t)
+	root, err := New(dir, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := root.Reveal(filepath.Join(dir, "docs", "inner", "deep.markdown"), Options{}); err != nil {
+		t.Fatal(err)
+	}
+	got := names(Flatten(root))
+	want := []string{"docs", "inner", "deep.markdown", "guide.md", "README.md"}
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("got %v, want %v", got, want)
+		}
+	}
+}
+
+func TestRevealOutsideRootIsNoop(t *testing.T) {
+	dir := makeTree(t)
+	root, err := New(dir, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := root.Reveal(filepath.Join(t.TempDir(), "elsewhere.md"), Options{}); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(Flatten(root)); n != 2 {
+		t.Errorf("tree should be unchanged, got %d rows: %v", n, names(Flatten(root)))
+	}
+}
+
+func TestRevealFileInRootNeedsNoExpansion(t *testing.T) {
+	dir := makeTree(t)
+	root, err := New(dir, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := root.Reveal(filepath.Join(dir, "README.md"), Options{}); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(Flatten(root)); n != 2 {
+		t.Errorf("tree should be unchanged, got %d rows: %v", n, names(Flatten(root)))
+	}
+}
+
+func TestRevealMissingAncestorStopsQuietly(t *testing.T) {
+	dir := makeTree(t)
+	root, err := New(dir, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := root.Reveal(filepath.Join(dir, "docs", "nope", "x.md"), Options{}); err != nil {
+		t.Fatal(err)
+	}
+	// docs exists and gets expanded on the way; the walk then stops.
+	if !Flatten(root)[0].Node.Expanded {
+		t.Error("docs should be expanded before the walk stops")
+	}
+}

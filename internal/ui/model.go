@@ -492,6 +492,7 @@ func (m *Model) clickTabBar(x int) {
 			m.active = i
 			m.focus = focusContent
 			m.ensureRendered(m.activeTab())
+			m.revealInSidebar(m.activeTab().path)
 		}
 		return
 	}
@@ -546,6 +547,7 @@ func (m *Model) openFile(path string) error {
 		if t.path == path {
 			m.active = i
 			m.ensureRendered(t)
+			m.revealInSidebar(path)
 			return nil
 		}
 	}
@@ -565,8 +567,26 @@ func (m *Model) openFile(path string) error {
 	m.layoutTabs()
 	m.ensureRendered(t)
 	m.syncWatch()
+	m.revealInSidebar(path)
 	m.statusMsg = ""
 	return nil
+}
+
+// revealInSidebar makes the sidebar follow path: ancestors expand and
+// the cursor lands on the file's row. Best-effort — files hidden by
+// the filter get their ancestors expanded at most, files outside the
+// tree change nothing, and a partial expand still re-flattens.
+func (m *Model) revealInSidebar(path string) {
+	_ = m.root.Reveal(path, m.treeOpts)
+	m.items = filetree.Flatten(m.root)
+	for i, it := range m.items {
+		if it.Node.Path == path {
+			m.cursor = i
+			break
+		}
+	}
+	m.clampTree()
+	m.scrollCursorIntoView()
 }
 
 func (m *Model) closeTab(i int) {
@@ -594,6 +614,7 @@ func (m *Model) switchTab(delta int) {
 	m.active = (m.active + delta + len(m.tabs)) % len(m.tabs)
 	m.focus = focusContent
 	m.ensureRendered(m.activeTab())
+	m.revealInSidebar(m.activeTab().path)
 }
 
 func (m *Model) activeTab() *tab {

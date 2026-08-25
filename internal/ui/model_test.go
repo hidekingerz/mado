@@ -866,3 +866,91 @@ func TestLineNumbersCoexistWithHighlighting(t *testing.T) {
 		t.Errorf("numbers should prefix highlighted lines:\n%s", stripAnsi(v))
 	}
 }
+
+// cursorName reports the sidebar row the cursor is on, "" if none.
+func cursorName(m Model) string {
+	if m.cursor < 0 || m.cursor >= len(m.items) {
+		return ""
+	}
+	return m.items[m.cursor].Node.Name
+}
+
+func TestOpenFileRevealsItInTheSidebar(t *testing.T) {
+	m := testModel(t,
+		map[string]string{"docs/inner/deep.md": "# D", "top.md": "# T"},
+		"docs/inner/deep.md",
+	)
+	if got := cursorName(m); got != "deep.md" {
+		t.Fatalf("cursor = %q, want deep.md; rows: %v", got, len(m.items))
+	}
+	var docs, inner bool
+	for _, it := range m.items {
+		if it.Node.Name == "docs" && it.Node.Expanded {
+			docs = true
+		}
+		if it.Node.Name == "inner" && it.Node.Expanded {
+			inner = true
+		}
+	}
+	if !docs || !inner {
+		t.Errorf("ancestors should be expanded: docs=%v inner=%v", docs, inner)
+	}
+}
+
+func TestSwitchTabFollowsInSidebar(t *testing.T) {
+	m := testModel(t,
+		map[string]string{"a/one.md": "# 1", "b/two.md": "# 2"},
+		"a/one.md", "b/two.md",
+	)
+	if got := cursorName(m); got != "two.md" {
+		t.Fatalf("cursor = %q, want two.md (last opened)", got)
+	}
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyTab})
+	if got := cursorName(m); got != "one.md" {
+		t.Errorf("cursor = %q, want one.md after tab switch", got)
+	}
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyTab})
+	if got := cursorName(m); got != "two.md" {
+		t.Errorf("cursor = %q, want two.md after switching back", got)
+	}
+}
+
+func TestRevealFilteredFileExpandsAncestorsOnly(t *testing.T) {
+	m := testModel(t, map[string]string{"sub/notes.txt": "plain", "top.md": "# T"})
+	before := cursorName(m)
+	if err := m.openFile(filepath.Join(m.root.Path, "sub", "notes.txt")); err != nil {
+		t.Fatal(err)
+	}
+	var subExpanded, txtVisible bool
+	for _, it := range m.items {
+		if it.Node.Name == "sub" && it.Node.Expanded {
+			subExpanded = true
+		}
+		if it.Node.Name == "notes.txt" {
+			txtVisible = true
+		}
+	}
+	if !subExpanded {
+		t.Error("sub should be expanded even though notes.txt is filtered out")
+	}
+	if txtVisible {
+		t.Error("notes.txt must stay hidden in markdown-only mode")
+	}
+	if got := cursorName(m); got != before {
+		t.Errorf("cursor moved to %q; it should stay on %q for a hidden file", got, before)
+	}
+}
+
+func TestRevealOutsideRootLeavesSidebarAlone(t *testing.T) {
+	m := testModel(t, map[string]string{"top.md": "# T"})
+	outside := filepath.Join(t.TempDir(), "elsewhere.md")
+	if err := os.WriteFile(outside, []byte("# E"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.openFile(outside); err != nil {
+		t.Fatal(err)
+	}
+	if got := cursorName(m); got != "top.md" {
+		t.Errorf("cursor = %q, want top.md untouched", got)
+	}
+}

@@ -11,7 +11,7 @@
 - **Markdown rendering** in the terminal via Glamour
 - **Reader / source modes** — toggle between a clean document view and syntax-highlighted raw markdown with one key
 - **Inline image preview** — PNG/JPEG/GIF files render as half-block pixel art fitted to the pane
-- **Sidebar file tree** rooted at the current directory (lazy-loaded, collapsible; `a` toggles between markdown-only and all files)
+- **Sidebar file tree** rooted at the current directory (lazy-loaded, collapsible; `a` toggles between markdown-only and all files). The tree follows the file being viewed: opening a file or switching tabs expands its directories and moves the cursor onto it
 - **Multiple open files** — each file opens in its own tab
 - **Mouse support** — click files to open, click tabs to switch, click `✕` to close, scroll wheel in both panes
 - **Auto-reload** — `--watch` re-renders open files as they change on disk, so mado can sit in a pane as a live view
