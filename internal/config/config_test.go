@@ -100,6 +100,24 @@ func TestToggleAllFilesKey(t *testing.T) {
 	}
 }
 
+func TestToggleLineNumbersKey(t *testing.T) {
+	if got := Default().Keys.ToggleLineNums; len(got) != 1 || got[0] != "n" {
+		t.Errorf("default ToggleLineNums = %v, want [n]", got)
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+	if err := os.WriteFile(path, []byte("[keys]\ntoggle_line_numbers = [\"N\"]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Keys.ToggleLineNums) != 1 || cfg.Keys.ToggleLineNums[0] != "N" {
+		t.Errorf("ToggleLineNums = %v, want [N]", cfg.Keys.ToggleLineNums)
+	}
+}
+
 func TestDirColorKey(t *testing.T) {
 	if got := Default().Theme.DirColor; got != "#89B4FA" {
 		t.Errorf("default DirColor = %q, want #89B4FA", got)

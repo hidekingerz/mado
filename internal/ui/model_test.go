@@ -813,3 +813,56 @@ func TestStatusBarPathCannotDriveTheTerminal(t *testing.T) {
 		t.Error("the status bar path drove the terminal")
 	}
 }
+
+func TestToggleLineNumbersInSourceMode(t *testing.T) {
+	m := testModel(t, map[string]string{"a.md": "one\ntwo\nthree\n"}, "a.md")
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'m'}}) // reader → source
+	if v := m.tabs[0].vp.View(); strings.Contains(v, "1 one") {
+		t.Fatalf("line numbers should be off by default:\n%s", v)
+	}
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	v := m.tabs[0].vp.View()
+	if !strings.Contains(v, "1 one") || !strings.Contains(v, "3 three") {
+		t.Errorf("source mode should number lines after toggle:\n%s", v)
+	}
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	if v := m.tabs[0].vp.View(); strings.Contains(v, "1 one") {
+		t.Errorf("line numbers should toggle back off:\n%s", v)
+	}
+}
+
+func TestLineNumbersOnPlainTextFile(t *testing.T) {
+	cfg := config.Default()
+	cfg.Theme.Style = "notty"
+	cfg.Sidebar.ShowAllFiles = true
+	m := testModelWithConfig(t, cfg, map[string]string{"notes.txt": "alpha\nbeta\n"}, "notes.txt")
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	v := m.tabs[0].vp.View()
+	if !strings.Contains(v, "1 alpha") || !strings.Contains(v, "2 beta") {
+		t.Errorf("text files render as source, so numbers apply without a mode toggle:\n%s", v)
+	}
+}
+
+func TestLineNumbersLeaveReaderModeAlone(t *testing.T) {
+	m := testModel(t, map[string]string{"a.md": "# Title\n\nbody\n"}, "a.md")
+	before := m.tabs[0].vp.View()
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	if after := m.tabs[0].vp.View(); after != before {
+		t.Errorf("reader mode must not change when line numbers toggle:\nbefore:\n%s\nafter:\n%s", before, after)
+	}
+}
+
+func TestLineNumbersCoexistWithHighlighting(t *testing.T) {
+	m := testModel(t, map[string]string{"doc.md": "# Title\n\ntext\n"}, "doc.md")
+	m.sourceStyle = "catppuccin-mocha"
+	m.formatter = "terminal16m"
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'m'}})
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	v := m.tabs[0].vp.View()
+	if !strings.Contains(v, "\x1b[") {
+		t.Error("highlighting should survive line numbering")
+	}
+	if !strings.Contains(stripAnsi(v), "1 # Title") {
+		t.Errorf("numbers should prefix highlighted lines:\n%s", stripAnsi(v))
+	}
+}
