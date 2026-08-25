@@ -68,6 +68,7 @@ type tab struct {
 	rendered     int // viewport width the content was last rendered at; 0 = never
 	renderedH    int // viewport height the content was last rendered at; image art depends on it
 	renderedMode viewMode
+	renderedNums bool // line-number state the content was last rendered with
 	renderErr    string
 }
 
@@ -110,20 +111,21 @@ type Model struct {
 	width  int
 	height int
 
-	root        *filetree.Node
-	treeOpts    filetree.Options
-	items       []filetree.Item
-	cursor      int
-	treeOff     int
-	sidebar     bool
-	focus       focusArea
-	mode        viewMode
-	style       string          // resolved glamour style ("auto" already decided)
-	sourceStyle string          // chroma style for source mode; "" = no highlighting
-	formatter   string          // chroma formatter; pinned at startup, "" = no color
-	profile     termenv.Profile // terminal color capability, pinned at startup
-	showHelp    bool
-	statusMsg   string
+	root         *filetree.Node
+	treeOpts     filetree.Options
+	items        []filetree.Item
+	cursor       int
+	treeOff      int
+	sidebar      bool
+	focus        focusArea
+	mode         viewMode
+	style        string          // resolved glamour style ("auto" already decided)
+	sourceStyle  string          // chroma style for source mode; "" = no highlighting
+	formatter    string          // chroma formatter; pinned at startup, "" = no color
+	profile      termenv.Profile // terminal color capability, pinned at startup
+	showLineNums bool            // vi :set nu for source-rendered content
+	showHelp     bool
+	statusMsg    string
 
 	tabs       []*tab
 	active     int
@@ -433,6 +435,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, k.ToggleAllFiles):
 		m.treeOpts.ShowAllFiles = !m.treeOpts.ShowAllFiles
 		m.reloadTree()
+	case key.Matches(msg, k.ToggleLineNums):
+		m.showLineNums = !m.showLineNums
+		m.ensureRendered(m.activeTab())
 	}
 	return m, nil
 }
@@ -650,7 +655,7 @@ func (m *Model) ensureRendered(t *tab) {
 	}
 	w := m.contentInnerWidth()
 	h := m.contentInnerHeight()
-	if w <= 0 || (t.rendered == w && t.renderedH == h && t.renderedMode == m.mode) {
+	if w <= 0 || (t.rendered == w && t.renderedH == h && t.renderedMode == m.mode && t.renderedNums == m.showLineNums) {
 		return
 	}
 	t.vp.Width = w
@@ -669,7 +674,11 @@ func (m *Model) ensureRendered(t *tab) {
 		if hl, err := highlightSource(t.raw, t.path, m.sourceStyle, m.formatter); err == nil {
 			content = hl
 		}
-		content = wordwrap.String(content, w-2)
+		if m.showLineNums {
+			content = numberLines(content, w-2, m.styles.dimmed)
+		} else {
+			content = wordwrap.String(content, w-2)
+		}
 	} else {
 		r, err := newRenderer(m.style, w)
 		if err == nil {
@@ -690,6 +699,7 @@ func (m *Model) ensureRendered(t *tab) {
 	t.rendered = w
 	t.renderedH = h
 	t.renderedMode = m.mode
+	t.renderedNums = m.showLineNums
 }
 
 // resolveStyle pins "auto" to dark or light once at startup, so that

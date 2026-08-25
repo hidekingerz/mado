@@ -65,6 +65,11 @@ There are two ways to look at a file, switched with `m`:
 The startup mode can be set with `default_mode = "source"` in the
 config.
 
+In source view (and for non-markdown text files, which always render as
+source), `n` toggles line numbers, like vi's `:set nu`. Wrapped
+continuation rows get a blank gutter, so the numbers track the file's
+lines rather than the fold.
+
 ### Auto-reload
 
 By default files are re-read only when you press `r` / `F5`. With
@@ -101,6 +106,7 @@ as text instead of colours.
 | `r`/`F5`           | reload tree and current file    |
 | `m`                | toggle reader / source mode     |
 | `a`                | show all files / markdown only  |
+| `n`                | toggle line numbers (source)    |
 | `?`                | help                            |
 | `q`/`ctrl+c`       | quit                            |
 

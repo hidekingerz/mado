@@ -71,6 +71,7 @@ type Keys struct {
 	Reload         []string `toml:"reload"`
 	ToggleMode     []string `toml:"toggle_mode"`
 	ToggleAllFiles []string `toml:"toggle_all_files"`
+	ToggleLineNums []string `toml:"toggle_line_numbers"`
 	Help           []string `toml:"help"`
 }
 
@@ -114,6 +115,7 @@ func Default() Config {
 			Reload:         []string{"r", "f5"},
 			ToggleMode:     []string{"m"},
 			ToggleAllFiles: []string{"a"},
+			ToggleLineNums: []string{"n"},
 			Help:           []string{"?"},
 		},
 	}
@@ -193,6 +195,7 @@ func merge(dst *Config, src Config) {
 	mergeKeys(&dst.Keys.Reload, src.Keys.Reload)
 	mergeKeys(&dst.Keys.ToggleMode, src.Keys.ToggleMode)
 	mergeKeys(&dst.Keys.ToggleAllFiles, src.Keys.ToggleAllFiles)
+	mergeKeys(&dst.Keys.ToggleLineNums, src.Keys.ToggleLineNums)
 	mergeKeys(&dst.Keys.Help, src.Keys.Help)
 }
 
