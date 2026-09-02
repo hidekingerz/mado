@@ -125,6 +125,8 @@ type Model struct {
 	sourceStyle  string          // chroma style for source mode; "" = no highlighting
 	formatter    string          // chroma formatter; pinned at startup, "" = no color
 	profile      termenv.Profile // terminal color capability, pinned at startup
+	darkBG       bool            // terminal background, pinned at startup like profile
+	configPath   string          // where the settings panel saves; "" = nowhere
 	showLineNums bool            // vi :set nu for source-rendered content
 	showHelp     bool
 	statusMsg    string
@@ -175,8 +177,8 @@ func New(cfg config.Config, rootDir string, initialFiles []string) (Model, error
 	if cfg.Theme.DefaultMode == "source" {
 		mode = modeSource
 	}
-	accent := lipgloss.Color(cfg.Theme.AccentColor)
-	style := resolveStyle(cfg.Theme.Style)
+	darkBG := termenv.HasDarkBackground()
+	style := resolveStyle(cfg.Theme.Style, darkBG)
 	m := Model{
 		cfg:         cfg,
 		keys:        newKeyMap(cfg.Keys),
@@ -186,22 +188,11 @@ func New(cfg config.Config, rootDir string, initialFiles []string) (Model, error
 		focus:       focusSidebar,
 		mode:        mode,
 		style:       style,
-		sourceStyle: chromaStyleName(style, cfg.Theme.SourceStyle, termenv.HasDarkBackground()),
+		sourceStyle: chromaStyleName(style, cfg.Theme.SourceStyle, darkBG),
 		formatter:   chromaFormatterName(),
 		profile:     termenv.ColorProfile(),
-		styles: styles{
-			accent:    lipgloss.NewStyle().Foreground(accent),
-			border:    lipgloss.NewStyle().Foreground(lipgloss.Color(cfg.Theme.BorderColor)),
-			selection: lipgloss.NewStyle().Foreground(lipgloss.Color(cfg.Theme.SelectionFg)).Background(lipgloss.Color(cfg.Theme.SelectionBg)).Bold(true),
-			cursor:    lipgloss.NewStyle().Foreground(lipgloss.Color(cfg.Theme.FileColor)).Bold(true),
-			dir:       lipgloss.NewStyle().Foreground(lipgloss.Color(cfg.Theme.DirColor)).Bold(true),
-			file:      lipgloss.NewStyle().Foreground(lipgloss.Color(cfg.Theme.FileColor)),
-			dimmed:    lipgloss.NewStyle().Foreground(lipgloss.Color("245")),
-			status:    lipgloss.NewStyle().Foreground(lipgloss.Color(cfg.Theme.StatusFg)).Background(lipgloss.Color(cfg.Theme.StatusBg)),
-			tabActive: lipgloss.NewStyle().Foreground(lipgloss.Color(cfg.Theme.SelectionFg)).Background(accent).Bold(true),
-			tabInactive: lipgloss.NewStyle().Foreground(lipgloss.Color(cfg.Theme.StatusFg)).
-				Background(lipgloss.Color(cfg.Theme.StatusBg)),
-		},
+		darkBG:      darkBG,
+		styles:      newStyles(cfg.Theme),
 	}
 	m.items = filetree.Flatten(m.root)
 	if cfg.General.Watch {
@@ -748,11 +739,12 @@ func (m *Model) ensureRendered(t *tab) {
 	t.renderedNums = m.showLineNums
 }
 
-// resolveStyle pins "auto" to dark or light once at startup, so that
-// renders inside the running program never query the terminal.
-func resolveStyle(style string) string {
+// resolveStyle pins "auto" to dark or light. darkBG is the terminal
+// background as read once at startup, so renders inside the running
+// program never query the terminal.
+func resolveStyle(style string, darkBG bool) string {
 	if style == "" || style == "auto" {
-		if termenv.HasDarkBackground() {
+		if darkBG {
 			return "dark"
 		}
 		return "light"
