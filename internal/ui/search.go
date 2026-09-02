@@ -161,48 +161,57 @@ func (m Model) handleSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.moveSearchCursor(len(m.search.results))
 	case tea.KeyTab:
 		return m, m.openSearch(m.search.target.Toggle())
-	case tea.KeyBackspace:
-		if q := m.search.query; q != "" {
-			_, size := utf8.DecodeLastRuneInString(q)
-			m.search.query = q[:len(q)-size]
+	default:
+		if next, ok := editPrompt(m.search.query, msg); ok && next != m.search.query {
+			m.search.query = next
 			return m, m.runSearch()
 		}
+	}
+	return m, nil
+}
+
+// editPrompt applies one editing key to a prompt's text: backspace
+// removes a rune, ctrl+w a word, ctrl+u everything; space and typed
+// characters (control characters dropped, alt-combinations ignored)
+// are appended. It reports whether msg was such a key, so callers can
+// treat every other key as a command.
+func editPrompt(s string, msg tea.KeyMsg) (string, bool) {
+	switch msg.Type {
+	case tea.KeyBackspace:
+		if s != "" {
+			_, size := utf8.DecodeLastRuneInString(s)
+			s = s[:len(s)-size]
+		}
+		return s, true
 	case tea.KeyCtrlW:
-		q := strings.TrimRightFunc(m.search.query, unicode.IsSpace)
+		q := strings.TrimRightFunc(s, unicode.IsSpace)
 		if i := strings.LastIndexFunc(q, unicode.IsSpace); i >= 0 {
 			q = q[:i+1]
 		} else {
 			q = ""
 		}
-		if q != m.search.query {
-			m.search.query = q
-			return m, m.runSearch()
-		}
+		return q, true
 	case tea.KeyCtrlU:
-		if m.search.query != "" {
-			m.search.query = ""
-			return m, m.runSearch()
-		}
+		return "", true
 	case tea.KeySpace:
-		m.search.query += " "
-		return m, m.runSearch()
+		return s + " ", true
 	case tea.KeyRunes:
 		if msg.Alt {
-			return m, nil
+			return s, true
 		}
 		var b strings.Builder
 		for _, r := range msg.Runes {
-			// A pasted newline or escape has no place in a query.
+			// A pasted newline or escape has no place in a value.
 			if !unicode.IsControl(r) {
 				b.WriteRune(r)
 			}
 		}
 		if b.Len() > 0 {
-			m.search.query += b.String()
-			return m, m.runSearch()
+			s += b.String()
 		}
+		return s, true
 	}
-	return m, nil
+	return s, false
 }
 
 // handleSearchMouse scrolls or picks from the result list. Clicks

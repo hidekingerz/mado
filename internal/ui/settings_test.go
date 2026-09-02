@@ -1,7 +1,9 @@
 package ui
 
 import (
+	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -231,5 +233,270 @@ func TestSettingsRemoteOpenClosesThePanel(t *testing.T) {
 	}
 	if m.settings.open {
 		t.Error("a remote open should put the file in front, closing the panel")
+	}
+}
+
+// typeText types s into the settings prompt.
+func typeText(t *testing.T, m Model, s string) Model {
+	t.Helper()
+	for _, r := range s {
+		if r == ' ' {
+			m = update(t, m, tea.KeyMsg{Type: tea.KeySpace, Runes: []rune{' '}})
+		} else {
+			m = update(t, m, keyRune(r))
+		}
+	}
+	return m
+}
+
+func savedConfig(t *testing.T, m Model) string {
+	t.Helper()
+	data, err := os.ReadFile(m.configPath)
+	if err != nil {
+		t.Fatalf("config not saved: %v", err)
+	}
+	return string(data)
+}
+
+func TestSettingsToggleBoolAppliesAndSaves(t *testing.T) {
+	m := settingsModel(t, map[string]string{"a.md": "# A", "notes.txt": "n"})
+	m = update(t, m, keyRune(','))
+	m = moveTo(t, m, "show_all_files")
+	m = update(t, m, enter())
+	if !m.cfg.Sidebar.ShowAllFiles {
+		t.Fatal("enter should toggle the value on")
+	}
+	if !strings.Contains(m.View(), "notes.txt") {
+		t.Error("the tree should reload with all files")
+	}
+	if got := savedConfig(t, m); got != "[sidebar]\nshow_all_files = true\n" {
+		t.Errorf("saved:\n%s", got)
+	}
+	m = update(t, m, tea.KeyMsg{Type: tea.KeySpace})
+	if m.cfg.Sidebar.ShowAllFiles {
+		t.Fatal("space should toggle the value off")
+	}
+	if got := savedConfig(t, m); got != "[sidebar]\nshow_all_files = false\n" {
+		t.Errorf("saved:\n%s", got)
+	}
+}
+
+func TestSettingsWatchToggleWaitsOnTheWatcher(t *testing.T) {
+	m := settingsModel(t, map[string]string{"a.md": "# A"}, "a.md")
+	t.Cleanup(func() {
+		if m.watcher != nil {
+			m.watcher.Close()
+		}
+	})
+	m = update(t, m, keyRune(','))
+	m = moveTo(t, m, "watch")
+	var cmd tea.Cmd
+	m, cmd = updateCmd(t, m, enter())
+	if m.watcher == nil || cmd == nil {
+		t.Fatalf("watch on: watcher = %v cmd = %v", m.watcher != nil, cmd != nil)
+	}
+	m = update(t, m, enter())
+	if m.watcher != nil {
+		t.Error("watch off should stop the watcher")
+	}
+}
+
+func TestSettingsEnumCyclesWithArrows(t *testing.T) {
+	m := settingsModel(t, map[string]string{"a.md": "# A"}, "a.md")
+	m = update(t, m, keyRune(','))
+	m = moveTo(t, m, "default_mode")
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyRight})
+	if m.cfg.Theme.DefaultMode != "source" || m.mode != modeSource {
+		t.Fatalf("right: default_mode = %q mode = %v", m.cfg.Theme.DefaultMode, m.mode)
+	}
+	if !strings.Contains(savedConfig(t, m), "default_mode = \"source\"") {
+		t.Errorf("saved:\n%s", savedConfig(t, m))
+	}
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyRight})
+	if m.cfg.Theme.DefaultMode != "reader" {
+		t.Error("right past the last option wraps to the first")
+	}
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyLeft})
+	if m.cfg.Theme.DefaultMode != "source" {
+		t.Error("left cycles backwards")
+	}
+	m = update(t, m, enter())
+	if m.cfg.Theme.DefaultMode != "reader" {
+		t.Error("enter goes forward")
+	}
+}
+
+func TestSettingsStyleCustomOpensAPrompt(t *testing.T) {
+	m := settingsModel(t, map[string]string{"a.md": "# A"})
+	m = update(t, m, keyRune(','))
+	m = moveTo(t, m, "style")
+	// The test config starts at notty; ascii is next, then custom….
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyRight})
+	if m.cfg.Theme.Style != "ascii" {
+		t.Fatalf("style = %q, want ascii", m.cfg.Theme.Style)
+	}
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyRight})
+	if m.settings.editing != editText || m.settings.input != "" {
+		t.Fatalf("custom… should open an empty prompt: editing = %v input = %q", m.settings.editing, m.settings.input)
+	}
+	if m.cfg.Theme.Style != "ascii" {
+		t.Error("nothing applies until a path is entered")
+	}
+	path := filepath.Join(t.TempDir(), "my.json")
+	if err := os.WriteFile(path, []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m = typeText(t, m, path)
+	m = update(t, m, enter())
+	if m.cfg.Theme.Style != path || m.settings.editing != editNone {
+		t.Fatalf("style = %q editing = %v", m.cfg.Theme.Style, m.settings.editing)
+	}
+	if !strings.Contains(savedConfig(t, m), "style = \""+path+"\"") {
+		t.Errorf("saved:\n%s", savedConfig(t, m))
+	}
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyLeft})
+	if m.cfg.Theme.Style != "ascii" {
+		t.Errorf("left from a custom path goes to the option before custom…, got %q", m.cfg.Theme.Style)
+	}
+}
+
+func TestSettingsTextPromptValidatesAndKeepsInput(t *testing.T) {
+	m := settingsModel(t, map[string]string{"a.md": "# A"})
+	m = update(t, m, keyRune(','))
+	m = moveTo(t, m, "accent_color")
+	m = update(t, m, enter())
+	if m.settings.editing != editText || m.settings.input != "#7C6AEF" {
+		t.Fatalf("the prompt should start with the current value: editing = %v input = %q", m.settings.editing, m.settings.input)
+	}
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyCtrlU})
+	m = typeText(t, m, "#12")
+	m = update(t, m, enter())
+	if m.settings.editing != editText {
+		t.Error("a rejected value keeps the prompt open")
+	}
+	if !strings.Contains(m.renderStatusBar(), "accent_color") {
+		t.Errorf("status bar should say why: %q", m.renderStatusBar())
+	}
+	if m.cfg.Theme.AccentColor != "#7C6AEF" {
+		t.Error("a rejected value must not apply")
+	}
+	m = typeText(t, m, "3456")
+	m = update(t, m, enter())
+	if m.cfg.Theme.AccentColor != "#123456" || m.settings.editing != editNone {
+		t.Fatalf("accent = %q editing = %v", m.cfg.Theme.AccentColor, m.settings.editing)
+	}
+	if got := m.styles.accent.GetForeground(); got != lipgloss.Color("#123456") {
+		t.Errorf("accent style = %v, want #123456", got)
+	}
+	if !strings.Contains(savedConfig(t, m), "accent_color = \"#123456\"") {
+		t.Errorf("saved:\n%s", savedConfig(t, m))
+	}
+	m = update(t, m, enter())
+	m = typeText(t, m, "zzz")
+	m = update(t, m, esc())
+	if m.settings.editing != editNone || m.cfg.Theme.AccentColor != "#123456" {
+		t.Error("esc cancels the prompt and leaves the value")
+	}
+}
+
+func TestSettingsPromptEditingKeys(t *testing.T) {
+	m := settingsModel(t, map[string]string{"a.md": "# A"})
+	m = update(t, m, keyRune(','))
+	m = moveTo(t, m, "exclude")
+	m = update(t, m, enter())
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyCtrlU})
+	m = typeText(t, m, "dist *.log")
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyBackspace})
+	if m.settings.input != "dist *.lo" {
+		t.Errorf("backspace: input = %q", m.settings.input)
+	}
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyCtrlW})
+	if m.settings.input != "dist " {
+		t.Errorf("ctrl+w: input = %q", m.settings.input)
+	}
+}
+
+func TestSettingsWidthAndExclude(t *testing.T) {
+	m := settingsModel(t, map[string]string{"a.md": "# A"})
+	m = update(t, m, keyRune(','))
+	m = moveTo(t, m, "width")
+	m = update(t, m, enter())
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyCtrlU})
+	m = typeText(t, m, "40")
+	m = update(t, m, enter())
+	if m.sidebarWidth() != 40 {
+		t.Errorf("sidebar width = %d, want 40", m.sidebarWidth())
+	}
+	if !strings.Contains(savedConfig(t, m), "width = 40") {
+		t.Errorf("saved:\n%s", savedConfig(t, m))
+	}
+
+	m = moveTo(t, m, "exclude")
+	m = update(t, m, enter())
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyCtrlU})
+	m = typeText(t, m, "dist *.log")
+	m = update(t, m, enter())
+	if !reflect.DeepEqual(m.cfg.Search.Exclude, []string{"dist", "*.log"}) {
+		t.Errorf("exclude = %v", m.cfg.Search.Exclude)
+	}
+	if !strings.Contains(savedConfig(t, m), "exclude = [\"dist\", \"*.log\"]") {
+		t.Errorf("saved:\n%s", savedConfig(t, m))
+	}
+	m = update(t, m, enter())
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyCtrlU})
+	m = update(t, m, enter())
+	if len(m.cfg.Search.Exclude) != 0 {
+		t.Errorf("an empty prompt clears the list, got %v", m.cfg.Search.Exclude)
+	}
+	if !strings.Contains(savedConfig(t, m), "exclude = []") {
+		t.Errorf("saved:\n%s", savedConfig(t, m))
+	}
+}
+
+func TestSettingsSaveFailureKeepsTheChange(t *testing.T) {
+	m := settingsModel(t, map[string]string{"a.md": "# A"})
+	m.configPath = t.TempDir() // a directory: reading it as a file fails
+	m = update(t, m, keyRune(','))
+	m = moveTo(t, m, "show_hidden")
+	m = update(t, m, enter())
+	if !m.cfg.Sidebar.ShowHidden {
+		t.Error("the change should stay applied")
+	}
+	if !strings.Contains(m.renderStatusBar(), "save failed") {
+		t.Errorf("status bar = %q, want a save failure", m.renderStatusBar())
+	}
+}
+
+func TestSettingsWithoutConfigPathWarns(t *testing.T) {
+	m := testModel(t, map[string]string{"a.md": "# A"})
+	m = update(t, m, keyRune(','))
+	if !strings.Contains(m.View(), "not saved") {
+		t.Error("the panel should say changes are not saved")
+	}
+	m = moveTo(t, m, "show_hidden")
+	m = update(t, m, enter())
+	if !m.cfg.Sidebar.ShowHidden {
+		t.Error("the change should still apply for the session")
+	}
+	if !strings.Contains(m.renderStatusBar(), "not saved") {
+		t.Errorf("status bar = %q", m.renderStatusBar())
+	}
+}
+
+func TestSettingsPreservesTheRestOfTheFile(t *testing.T) {
+	m := settingsModel(t, map[string]string{"a.md": "# A"})
+	src := "# mine\n[theme]\nstyle = \"notty\" # keep\n\n[sidebar]\nwidth = 32\n"
+	if err := os.WriteFile(m.configPath, []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m = update(t, m, keyRune(','))
+	m = moveTo(t, m, "width")
+	m = update(t, m, enter())
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyCtrlU})
+	m = typeText(t, m, "48")
+	m = update(t, m, enter())
+	want := "# mine\n[theme]\nstyle = \"notty\" # keep\n\n[sidebar]\nwidth = 48\n"
+	if got := savedConfig(t, m); got != want {
+		t.Errorf("saved:\n%s\nwant:\n%s", got, want)
 	}
 }
