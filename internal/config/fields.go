@@ -123,6 +123,22 @@ func Fields() []Field {
 		boolField("sidebar", "show_hidden", "List dotfiles and dot-directories",
 			func(c *Config) *bool { return &c.Sidebar.ShowHidden }),
 	}
+	fs = append(fs, Field{
+		Table: "search", Key: "exclude", Kind: KindList,
+		Desc: "Patterns the search skips, separated by spaces; empty searches everything",
+		Get:  func(c *Config) string { return strings.Join(c.Search.Exclude, " ") },
+		Set: func(c *Config, v string) error {
+			list := strings.Fields(v)
+			if list == nil {
+				list = []string{} // an explicit "exclude = []", not an absent key
+			}
+			c.Search.Exclude = list
+			return nil
+		},
+	})
+	for _, a := range keyActions() {
+		fs = append(fs, keysField(a.key, a.desc, a.ptr))
+	}
 	return fs
 }
 
@@ -190,4 +206,116 @@ func setStyle(dst *string, v string) error {
 	}
 	*dst = v
 	return nil
+}
+
+type keyAction struct {
+	key, desc string
+	ptr       func(*Config) *[]string
+}
+
+// keyActions lists the [keys] table in the order config.example.toml
+// has it.
+func keyActions() []keyAction {
+	return []keyAction{
+		{"quit", "Quit", func(c *Config) *[]string { return &c.Keys.Quit }},
+		{"up", "Move up / scroll up", func(c *Config) *[]string { return &c.Keys.Up }},
+		{"down", "Move down / scroll down", func(c *Config) *[]string { return &c.Keys.Down }},
+		{"open", "Open file / expand directory", func(c *Config) *[]string { return &c.Keys.Open }},
+		{"back", "Focus the sidebar", func(c *Config) *[]string { return &c.Keys.Back }},
+		{"close_tab", "Close tab", func(c *Config) *[]string { return &c.Keys.CloseTab }},
+		{"next_tab", "Next tab", func(c *Config) *[]string { return &c.Keys.NextTab }},
+		{"prev_tab", "Previous tab", func(c *Config) *[]string { return &c.Keys.PrevTab }},
+		{"toggle_sidebar", "Show / hide the sidebar", func(c *Config) *[]string { return &c.Keys.ToggleSidebar }},
+		{"half_page_down", "Half page down", func(c *Config) *[]string { return &c.Keys.HalfPageDown }},
+		{"half_page_up", "Half page up", func(c *Config) *[]string { return &c.Keys.HalfPageUp }},
+		{"top", "Go to top", func(c *Config) *[]string { return &c.Keys.Top }},
+		{"bottom", "Go to bottom", func(c *Config) *[]string { return &c.Keys.Bottom }},
+		{"reload", "Reload tree and file", func(c *Config) *[]string { return &c.Keys.Reload }},
+		{"toggle_mode", "Reader / source mode", func(c *Config) *[]string { return &c.Keys.ToggleMode }},
+		{"toggle_all_files", "All files / markdown only", func(c *Config) *[]string { return &c.Keys.ToggleAllFiles }},
+		{"toggle_line_numbers", "Line numbers in source view", func(c *Config) *[]string { return &c.Keys.ToggleLineNums }},
+		{"search", "Search file names", func(c *Config) *[]string { return &c.Keys.Search }},
+		{"search_content", "Search file contents", func(c *Config) *[]string { return &c.Keys.SearchContent }},
+		{"settings", "Open this settings panel", func(c *Config) *[]string { return &c.Keys.Settings }},
+		{"help", "Help", func(c *Config) *[]string { return &c.Keys.Help }},
+	}
+}
+
+func keysField(key, desc string, ptr func(*Config) *[]string) Field {
+	return Field{
+		Table: "keys", Key: key, Kind: KindKeys, Desc: desc,
+		Get: func(c *Config) string { return strings.Join(*ptr(c), ", ") },
+		Set: func(c *Config, v string) error {
+			var keys []string
+			for _, k := range strings.Split(v, ",") {
+				if k = strings.TrimSpace(k); k != "" {
+					keys = append(keys, k)
+				}
+			}
+			if len(keys) == 0 {
+				return fmt.Errorf("%s needs at least one key", key)
+			}
+			for _, k := range keys {
+				if owner := keyOwner(c, k); owner != "" && owner != key {
+					return fmt.Errorf("%s is already bound to %s", k, owner)
+				}
+			}
+			*ptr(c) = keys
+			return nil
+		},
+		keys: ptr,
+	}
+}
+
+// Keys returns the action's key list. Nil for fields that are not
+// key bindings.
+func (f Field) Keys(c *Config) []string {
+	if f.keys == nil {
+		return nil
+	}
+	return *f.keys(c)
+}
+
+// AddKey binds one more key to the action. A key that is already
+// bound — to this action or another — is refused, naming the owner;
+// so is a space, which cannot be typed as a key name.
+func (f Field) AddKey(c *Config, k string) error {
+	if f.keys == nil {
+		return fmt.Errorf("%s is not a key binding", f.Key)
+	}
+	if strings.TrimSpace(k) == "" {
+		return fmt.Errorf("space cannot be bound")
+	}
+	if owner := keyOwner(c, k); owner != "" {
+		return fmt.Errorf("%s is already bound to %s", k, owner)
+	}
+	p := f.keys(c)
+	*p = append(append([]string(nil), (*p)...), k)
+	return nil
+}
+
+// RemoveLastKey unbinds the action's most recently added key. Every
+// action keeps at least one.
+func (f Field) RemoveLastKey(c *Config) error {
+	if f.keys == nil {
+		return fmt.Errorf("%s is not a key binding", f.Key)
+	}
+	p := f.keys(c)
+	if len(*p) <= 1 {
+		return fmt.Errorf("%s needs at least one key", f.Key)
+	}
+	*p = append([]string(nil), (*p)[:len(*p)-1]...)
+	return nil
+}
+
+// keyOwner names the action k is bound to, or "" when k is free.
+func keyOwner(c *Config, k string) string {
+	for _, a := range keyActions() {
+		for _, bound := range *a.ptr(c) {
+			if bound == k {
+				return a.key
+			}
+		}
+	}
+	return ""
 }
