@@ -183,7 +183,7 @@ func TestUpdateKeepsFileMode(t *testing.T) {
 		t.Skip("file modes are not meaningful on windows")
 	}
 	path := filepath.Join(t.TempDir(), "config.toml")
-	if err := os.WriteFile(path, []byte("[sidebar]\nwidth = 32\n"), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte("[sidebar]\nwidth = 32\n"), 0o640); err != nil {
 		t.Fatal(err)
 	}
 	if err := Update(path, "sidebar", "width", 40); err != nil {
@@ -193,8 +193,8 @@ func TestUpdateKeepsFileMode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Mode().Perm() != 0o600 {
-		t.Errorf("mode = %o, want 600", info.Mode().Perm())
+	if info.Mode().Perm() != 0o640 {
+		t.Errorf("mode = %o, want 640", info.Mode().Perm())
 	}
 }
 
