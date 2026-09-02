@@ -225,27 +225,36 @@ func (m Model) renderStatusBar() string {
 	}
 	if m.settings.open {
 		left += "[SETTINGS]  "
-		if m.configPath != "" {
+		switch {
+		case m.statusMsg != "":
+			// A long config path would otherwise push the reason for a
+			// rejected or unsaved change off the edge of the bar; the
+			// panel's own title row already shows the path, so leave
+			// it out here and show the reason instead.
+			left += "⚠ " + m.statusMsg
+		case m.configPath != "":
 			left += m.configPath
-		} else {
+		default:
 			left += "not saved"
 		}
-	} else if m.search.open {
-		left += "[SEARCH " + strings.ToUpper(m.search.target.String()) + "]  " + m.root.Path
-		if sum := m.searchSummary(); sum != "" {
-			left += "  " + sum
-		}
-	} else if t := m.activeTab(); t != nil {
-		left += "[" + m.mode.String() + "]  " + t.path
-		left += fmt.Sprintf("  %3.0f%%", t.vp.ScrollPercent()*100)
-		if t.renderErr != "" {
-			left += "  [render error: " + t.renderErr + "]"
-		}
 	} else {
-		left += m.root.Path
-	}
-	if m.statusMsg != "" {
-		left += "  ⚠ " + m.statusMsg
+		if m.search.open {
+			left += "[SEARCH " + strings.ToUpper(m.search.target.String()) + "]  " + m.root.Path
+			if sum := m.searchSummary(); sum != "" {
+				left += "  " + sum
+			}
+		} else if t := m.activeTab(); t != nil {
+			left += "[" + m.mode.String() + "]  " + t.path
+			left += fmt.Sprintf("  %3.0f%%", t.vp.ScrollPercent()*100)
+			if t.renderErr != "" {
+				left += "  [render error: " + t.renderErr + "]"
+			}
+		} else {
+			left += m.root.Path
+		}
+		if m.statusMsg != "" {
+			left += "  ⚠ " + m.statusMsg
+		}
 	}
 	// left is built from paths and error messages, both of which carry
 	// names from disk.
