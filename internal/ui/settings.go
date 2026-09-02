@@ -309,10 +309,23 @@ func (m Model) renderSettingsRow(r settingsRow, keyW, w int, selected bool) stri
 	case selected:
 		return m.styles.selection.Render(padLine(truncate(name+value, w), w))
 	case value != f.Default():
-		return name + m.styles.accent.Render(truncate(value, valueW))
+		return renderSettingsPlainRow(name, value, w, m.styles.accent)
 	default:
-		return name + m.styles.file.Render(truncate(value, valueW))
+		return renderSettingsPlainRow(name, value, w, m.styles.file)
 	}
+}
+
+// renderSettingsPlainRow lays out name+value in w columns for a
+// non-selected row: value is styled and truncated to what is left
+// after name, but when name itself does not fit in w (a long key
+// name in a narrow pane) name is truncated instead, so the row never
+// exceeds w and wraps onto a second line.
+func renderSettingsPlainRow(name, value string, w int, style lipgloss.Style) string {
+	if lipgloss.Width(name) > w {
+		return truncate(name, w)
+	}
+	valueW := maxInt(w-lipgloss.Width(name), 0)
+	return name + style.Render(truncate(value, valueW))
 }
 
 // renderSettingsFooter describes the selected field and its default,

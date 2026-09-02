@@ -176,16 +176,49 @@ func TestSettingsMouseSelectsAndScrolls(t *testing.T) {
 	}
 }
 
+// checkSettingsFitsPane asserts that every line of m.View() is no wider
+// than the pane and that there are exactly m.height lines: a row whose
+// plain layout does not fit w gets word-wrapped by the outer lipgloss
+// box, which both can miss (a wrapped line can still measure <= width)
+// but which always grows the frame taller than m.height.
+func checkSettingsFitsPane(t *testing.T, m Model) {
+	t.Helper()
+	lines := strings.Split(m.View(), "\n")
+	for _, line := range lines {
+		if w := lipgloss.Width(line); w > m.width {
+			t.Errorf("line is %d wide, pane is %d: %q", w, m.width, line)
+		}
+	}
+	if len(lines) != m.height {
+		t.Errorf("View() has %d lines, want %d (a wrapped row grows the frame)", len(lines), m.height)
+	}
+}
+
 func TestSettingsRowsFitThePane(t *testing.T) {
+	// At width 44 with the cursor on the last field ("help"), the
+	// selected row's own truncation is exercised.
 	m := settingsModel(t, map[string]string{"a.md": "# A"})
 	m = update(t, m, keyRune(','))
 	m = update(t, m, tea.WindowSizeMsg{Width: 44, Height: 12})
 	m = update(t, m, tea.KeyMsg{Type: tea.KeyEnd})
-	for _, line := range strings.Split(m.View(), "\n") {
-		if w := lipgloss.Width(line); w > 44 {
-			t.Errorf("line is %d wide, pane is 44: %q", w, line)
-		}
+	checkSettingsFitsPane(t, m)
+}
+
+func TestSettingsUnselectedLongKeyFitsThePane(t *testing.T) {
+	// At width 40 the content pane is only 18 columns, narrower than
+	// "toggle_line_numbers" (the longest key). With the cursor moved
+	// past it — onto "search" — that row is unselected, which is what
+	// exercises the plain (non-cursor) row layout: it must not push
+	// the row wider than the pane and get word-wrapped onto a second
+	// line by the outer box.
+	m := settingsModel(t, map[string]string{"a.md": "# A"})
+	m = update(t, m, keyRune(','))
+	m = update(t, m, tea.WindowSizeMsg{Width: 40, Height: 12})
+	m = moveTo(t, m, "search")
+	if selectedField(m) != "search" {
+		t.Fatalf("cursor should be on search, got %q", selectedField(m))
 	}
+	checkSettingsFitsPane(t, m)
 }
 
 func TestSettingsRemoteOpenClosesThePanel(t *testing.T) {
