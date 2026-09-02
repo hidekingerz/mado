@@ -19,6 +19,7 @@
 - **Remote commands** — `mado --remote open FILE` adds a tab to the instance already on screen instead of starting a second one
 - **TOML configuration** — `~/.config/mado/config.toml`
 - **Configurable keyboard shortcuts** — every action can be rebound
+- **Settings panel** — `,` opens every setting for editing in place; changes apply at once and are written back to the config file, one key at a time, leaving comments alone
 - **Theme customization** — Glamour styles (`auto`, `dark`, `light`, `dracula`, or your own style JSON) plus UI colors and a `source_style` for source-mode highlighting
 
 ## Install
@@ -96,6 +97,26 @@ matches a name at any depth (`node_modules`, `*.log`); one with a
 slash matches a path relative to the root (`docs/drafts`). Setting the
 key replaces the default list, so `exclude = []` searches everything.
 
+### Settings
+
+`,` opens a settings panel over the content pane listing every key
+from `config.toml` under its table. `↑`/`↓` (or `k`/`j`) move between
+them, and the footer describes the selected one with its default.
+Editing depends on the kind of value: `enter` or `space` flips a
+switch, `←`/`→` step through a choice, `enter` opens an inline prompt
+for text, numbers and lists (`enter` applies, `esc` cancels), and for
+a key binding `enter` captures the next key you press — whatever it
+is, `esc` included — while `backspace` removes the action's last key.
+`esc` or `,` closes the panel. `ctrl+c` still quits.
+
+A change takes effect the moment it is made: colors repaint, a new
+style re-renders the open tabs, the tree reloads, the watcher starts
+or stops, and a rebound key works from the next press. It is also
+written to the config file at once — only that key, so a hand-written
+file keeps its comments and order. A value that will not do (a color
+that is not `#RRGGBB` or `0`–`255`, a key another action already has)
+is refused with a note in the status bar and nothing changes.
+
 ### Auto-reload
 
 By default files are re-read only when you press `r` / `F5`. With
@@ -135,6 +156,7 @@ as text instead of colours.
 | `n`                | toggle line numbers (source)    |
 | `/`                | search file names               |
 | `ctrl+f`           | search file contents            |
+| `,`                | settings                        |
 | `?`                | help                            |
 | `q`/`ctrl+c`       | quit                            |
 
@@ -184,8 +206,9 @@ still works.
 
 mado reads `$XDG_CONFIG_HOME/mado/config.toml` (default
 `~/.config/mado/config.toml`). Every key is optional; unset values fall
-back to the defaults. See [`config.example.toml`](config.example.toml)
-for the full annotated reference.
+back to the defaults. The settings panel (`,`) edits this file in
+place. See [`config.example.toml`](config.example.toml) for the full
+annotated reference.
 
 ```toml
 [general]
