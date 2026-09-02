@@ -2,8 +2,12 @@ package config
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/BurntSushi/toml"
 )
 
 // encodeValue renders v as a TOML value: a basic string, a boolean,
@@ -210,4 +214,53 @@ func trailingComment(line string) string {
 		return " " + line[i:]
 	}
 	return line[start:]
+}
+
+// Update sets table.key to value in the TOML file at path, leaving
+// the rest of the file as it was. The result is parsed before it is
+// written, so a file that would no longer load is refused rather than
+// saved; the write goes through a temporary file in the same
+// directory and a rename, so an interruption leaves the old file
+// whole. A missing file, and its directory, are created.
+func Update(path, table, key string, value any) error {
+	encoded, err := encodeValue(value)
+	if err != nil {
+		return err
+	}
+	src, err := os.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	out := replaceKey(string(src), table, key, encoded)
+	var check Config
+	if err := toml.Unmarshal([]byte(out), &check); err != nil {
+		return fmt.Errorf("refusing to write %s: the result would not load: %w", path, err)
+	}
+	return writeAtomic(path, []byte(out))
+}
+
+// writeAtomic replaces the file at path with data by writing a
+// sibling temporary file and renaming it over, keeping the mode of
+// the file it replaces.
+func writeAtomic(path string, data []byte) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(dir, "."+filepath.Base(path)+".*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name()) // gone already once renamed
+	if info, err := os.Stat(path); err == nil {
+		_ = tmp.Chmod(info.Mode().Perm())
+	}
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), path)
 }
