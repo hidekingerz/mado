@@ -246,3 +246,20 @@ func TestSearchExclude(t *testing.T) {
 		t.Errorf("exclude = %v, want empty", cfg.Search.Exclude)
 	}
 }
+
+func TestSettingsKey(t *testing.T) {
+	if got := Default().Keys.Settings; len(got) != 1 || got[0] != "," {
+		t.Errorf("default settings key = %v, want [,]", got)
+	}
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte("[keys]\nsettings = [\"ctrl+s\"]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Keys.Settings) != 1 || cfg.Keys.Settings[0] != "ctrl+s" {
+		t.Errorf("settings = %v, want [ctrl+s]", cfg.Keys.Settings)
+	}
+}
