@@ -500,3 +500,99 @@ func TestSettingsPreservesTheRestOfTheFile(t *testing.T) {
 		t.Errorf("saved:\n%s\nwant:\n%s", got, want)
 	}
 }
+
+func TestSettingsCaptureBindsAKey(t *testing.T) {
+	m := settingsModel(t, map[string]string{"a.md": "# A", "b.md": "# B"}, "a.md", "b.md")
+	m = update(t, m, keyRune(','))
+	m = moveTo(t, m, "next_tab")
+	m = update(t, m, enter())
+	if m.settings.editing != editCapture {
+		t.Fatalf("enter should start a capture, editing = %v", m.settings.editing)
+	}
+	if !strings.Contains(m.View(), "press a key") || !strings.Contains(m.renderStatusBar(), "press a key") {
+		t.Error("the row and the status bar should ask for a key")
+	}
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyCtrlN})
+	if m.settings.editing != editNone {
+		t.Error("one press ends the capture")
+	}
+	if !reflect.DeepEqual(m.cfg.Keys.NextTab, []string{"tab", "]", "ctrl+n"}) {
+		t.Errorf("next_tab = %v", m.cfg.Keys.NextTab)
+	}
+	if !strings.Contains(savedConfig(t, m), "next_tab = [\"tab\", \"]\", \"ctrl+n\"]") {
+		t.Errorf("saved:\n%s", savedConfig(t, m))
+	}
+	m = update(t, m, esc())
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyCtrlN})
+	if m.active != 0 {
+		t.Error("the new key should switch tabs as soon as the panel closes")
+	}
+}
+
+func TestSettingsCaptureRefusesAKeyAnotherActionHas(t *testing.T) {
+	m := settingsModel(t, map[string]string{"a.md": "# A"})
+	m = update(t, m, keyRune(','))
+	m = moveTo(t, m, "reload")
+	m = update(t, m, enter())
+	m = update(t, m, keyRune('q'))
+	if m.settings.editing != editNone {
+		t.Error("a refused key still ends the capture")
+	}
+	if !strings.Contains(m.renderStatusBar(), "quit") {
+		t.Errorf("status bar should name the owner: %q", m.renderStatusBar())
+	}
+	if !reflect.DeepEqual(m.cfg.Keys.Reload, []string{"r", "f5"}) {
+		t.Errorf("reload = %v, want unchanged", m.cfg.Keys.Reload)
+	}
+	if _, err := os.Stat(m.configPath); !os.IsNotExist(err) {
+		t.Error("nothing should be saved for a refused key")
+	}
+}
+
+func TestSettingsCaptureTakesEscAsAKey(t *testing.T) {
+	m := settingsModel(t, map[string]string{"a.md": "# A"})
+	m = update(t, m, keyRune(','))
+	m = moveTo(t, m, "back")
+	m = update(t, m, enter())
+	m = update(t, m, esc())
+	if !m.settings.open {
+		t.Fatal("esc during a capture is the key, not a close")
+	}
+	if !strings.Contains(m.renderStatusBar(), "already bound to back") {
+		t.Errorf("esc reached the binding and was refused as a duplicate: %q", m.renderStatusBar())
+	}
+}
+
+func TestSettingsSpaceCannotBeBound(t *testing.T) {
+	m := settingsModel(t, map[string]string{"a.md": "# A"})
+	m = update(t, m, keyRune(','))
+	m = moveTo(t, m, "help")
+	m = update(t, m, enter())
+	m = update(t, m, tea.KeyMsg{Type: tea.KeySpace, Runes: []rune{' '}})
+	if !strings.Contains(m.renderStatusBar(), "space") {
+		t.Errorf("status bar = %q", m.renderStatusBar())
+	}
+	if !reflect.DeepEqual(m.cfg.Keys.Help, []string{"?"}) {
+		t.Errorf("help = %v", m.cfg.Keys.Help)
+	}
+}
+
+func TestSettingsBackspaceRemovesTheLastKey(t *testing.T) {
+	m := settingsModel(t, map[string]string{"a.md": "# A"})
+	m = update(t, m, keyRune(','))
+	m = moveTo(t, m, "reload")
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyBackspace})
+	if !reflect.DeepEqual(m.cfg.Keys.Reload, []string{"r"}) {
+		t.Errorf("reload = %v, want [r]", m.cfg.Keys.Reload)
+	}
+	if !strings.Contains(savedConfig(t, m), "reload = [\"r\"]") {
+		t.Errorf("saved:\n%s", savedConfig(t, m))
+	}
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyBackspace})
+	if !reflect.DeepEqual(m.cfg.Keys.Reload, []string{"r"}) {
+		t.Error("the last key stays")
+	}
+	if !strings.Contains(m.renderStatusBar(), "at least one key") {
+		t.Errorf("status bar = %q", m.renderStatusBar())
+	}
+}

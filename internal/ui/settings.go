@@ -180,6 +180,9 @@ func (m Model) handleSettingsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if s.editing == editText {
 		return m.handleSettingsTextKey(msg)
 	}
+	if s.editing == editCapture {
+		return m.handleSettingsCaptureKey(msg)
+	}
 	if key.Matches(msg, m.keys.Settings) {
 		m.closeSettings()
 		return m, nil
@@ -416,6 +419,14 @@ func (m Model) editSetting(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if msg.Type == tea.KeyEnter {
 			m.startSettingsText(cur, nil)
 		}
+	case config.KindKeys:
+		switch msg.Type {
+		case tea.KeyEnter:
+			m.settings.editing = editCapture
+		case tea.KeyBackspace:
+			cmd, _ := m.commitSetting(f, f.RemoveLastKey)
+			return m, cmd
+		}
 	}
 	return m, nil
 }
@@ -474,6 +485,20 @@ func (m Model) handleSettingsTextKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, nil
+}
+
+// handleSettingsCaptureKey binds the pressed key to the selected
+// action. Whatever the key is, it is the value — so esc can be bound
+// — except ctrl+c, which handleKey turned into quit before this.
+func (m Model) handleSettingsCaptureKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	m.settings.editing = editNone
+	f, ok := m.selectedSetting()
+	if !ok {
+		return m, nil
+	}
+	k := msg.String()
+	cmd, _ := m.commitSetting(f, func(c *config.Config) error { return f.AddKey(c, k) })
+	return m, cmd
 }
 
 // commitSetting applies change to a copy of the config, then puts the
