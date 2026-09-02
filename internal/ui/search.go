@@ -78,13 +78,7 @@ func (m *Model) closeSearch() {
 	}
 	m.search.open = false
 	m.cancelSearch()
-	m.focus = m.search.prevFocus
-	if m.focus == focusSidebar && !m.sidebar {
-		m.focus = focusContent
-	}
-	if m.focus == focusContent && len(m.tabs) == 0 && m.sidebar {
-		m.focus = focusSidebar
-	}
+	m.restoreFocus(m.search.prevFocus)
 }
 
 func (m *Model) cancelSearch() {

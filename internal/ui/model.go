@@ -138,6 +138,9 @@ type Model struct {
 	// search is the find-by-name / find-in-files panel.
 	search searchState
 
+	// settings is the panel that edits the config in place.
+	settings settingsState
+
 	// watcher is nil unless auto-reload is enabled; when set, changes
 	// under the open files and the sidebar tree trigger a reload.
 	watcher *watch.Watcher
@@ -249,6 +252,7 @@ func (m *Model) handleRemote(req *remote.Request) {
 		// on screen before.
 		m.showHelp = false
 		m.closeSearch()
+		m.closeSettings()
 		m.focus = focusContent
 		req.Respond(nil)
 	case remote.CmdFocus:
@@ -257,6 +261,7 @@ func (m *Model) handleRemote(req *remote.Request) {
 				m.active = i
 				m.showHelp = false
 				m.closeSearch()
+				m.closeSettings()
 				m.focus = focusContent
 				m.ensureRendered(t)
 				req.Respond(nil)
@@ -348,6 +353,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	k := m.keys
+	// The settings panel owns the keyboard while open, so a key being
+	// captured can be anything — esc included. Only ctrl+c still quits.
+	if m.settings.open && msg.Type != tea.KeyCtrlC {
+		return m.handleSettingsKey(msg)
+	}
 	// While the search prompt has the keyboard, typed characters are
 	// the query — "q" included. Only a quit key that cannot be typed
 	// (ctrl+c) still quits.
@@ -368,6 +378,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.openSearch(search.Names)
 	case key.Matches(msg, k.SearchContent):
 		return m, m.openSearch(search.Contents)
+	case key.Matches(msg, k.Settings):
+		m.openSettings()
+		return m, nil
 	case key.Matches(msg, k.Help):
 		m.showHelp = !m.showHelp
 		return m, nil
@@ -455,6 +468,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	if m.settings.open {
+		return m.handleSettingsMouse(msg)
+	}
 	if m.search.open {
 		return m.handleSearchMouse(msg)
 	}
@@ -887,6 +903,7 @@ func (m *Model) layoutTabs() {
 	m.clampTree()
 	m.scrollCursorIntoView()
 	m.clampSearch()
+	m.clampSettings()
 }
 
 func baseName(path string) string {

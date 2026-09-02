@@ -109,7 +109,7 @@ func (m Model) renderSidebar() string {
 		text += strings.Repeat(" ", innerW-lipgloss.Width(text))
 
 		switch {
-		case idx == m.cursor && m.focus == focusSidebar && !m.search.open:
+		case idx == m.cursor && m.focus == focusSidebar && !m.search.open && !m.settings.open:
 			text = m.styles.selection.Render(text)
 		case idx == m.cursor:
 			text = m.styles.cursor.Render(text)
@@ -124,7 +124,7 @@ func (m Model) renderSidebar() string {
 	}
 
 	borderColor := m.cfg.Theme.BorderColor
-	if m.focus == focusSidebar && !m.search.open {
+	if m.focus == focusSidebar && !m.search.open && !m.settings.open {
 		borderColor = m.cfg.Theme.AccentColor
 	}
 	return lipgloss.NewStyle().
@@ -143,6 +143,8 @@ func (m Model) renderContent() string {
 
 	var body string
 	switch {
+	case m.settings.open:
+		body = m.renderSettings(innerW, innerH)
 	case m.search.open:
 		body = m.renderSearch(innerW, innerH)
 	case m.showHelp:
@@ -154,7 +156,7 @@ func (m Model) renderContent() string {
 	}
 
 	borderColor := m.cfg.Theme.BorderColor
-	if m.focus == focusContent || m.search.open {
+	if m.focus == focusContent || m.search.open || m.settings.open {
 		borderColor = m.cfg.Theme.AccentColor
 	}
 	return lipgloss.NewStyle().
@@ -221,7 +223,14 @@ func (m Model) renderStatusBar() string {
 	if m.watcher != nil {
 		left += "[WATCH] "
 	}
-	if m.search.open {
+	if m.settings.open {
+		left += "[SETTINGS]  "
+		if m.configPath != "" {
+			left += m.configPath
+		} else {
+			left += "not saved"
+		}
+	} else if m.search.open {
 		left += "[SEARCH " + strings.ToUpper(m.search.target.String()) + "]  " + m.root.Path
 		if sum := m.searchSummary(); sum != "" {
 			left += "  " + sum
@@ -245,10 +254,20 @@ func (m Model) renderStatusBar() string {
 	if m.search.open {
 		right = "enter open │ tab " + m.search.target.Toggle().String() + " │ esc close "
 	}
+	if m.settings.open {
+		right = m.settingsHint()
+	}
 
 	gap := m.width - lipgloss.Width(left) - lipgloss.Width(right)
 	if gap < 1 {
 		left = truncate(left, maxInt(m.width-lipgloss.Width(right)-1, 0))
+		gap = m.width - lipgloss.Width(left) - lipgloss.Width(right)
+	}
+	if gap < 1 {
+		// left alone (or emptied) still does not leave room: the right
+		// side itself is wider than the pane, which the settings hint
+		// can be in a narrow terminal. Cut it too, rather than overflow.
+		right = truncate(right, maxInt(m.width-lipgloss.Width(left)-1, 0))
 		gap = maxInt(m.width-lipgloss.Width(left)-lipgloss.Width(right), 1)
 	}
 	line := left + strings.Repeat(" ", gap) + right
