@@ -192,6 +192,7 @@ func (m Model) renderHelp(w, h int) string {
 		{k.ToggleLineNums.Help().Key, k.ToggleLineNums.Help().Desc},
 		{k.Search.Help().Key, k.Search.Help().Desc},
 		{k.SearchContent.Help().Key, k.SearchContent.Help().Desc},
+		{k.Settings.Help().Key, k.Settings.Help().Desc},
 		{k.Help.Help().Key, k.Help.Help().Desc},
 		{k.Quit.Help().Key, k.Quit.Help().Desc},
 	}

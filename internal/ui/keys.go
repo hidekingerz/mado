@@ -26,6 +26,7 @@ type keyMap struct {
 	ToggleLineNums key.Binding
 	Search         key.Binding
 	SearchContent  key.Binding
+	Settings       key.Binding
 	Help           key.Binding
 }
 
@@ -53,6 +54,7 @@ func newKeyMap(k config.Keys) keyMap {
 		ToggleLineNums: bind(k.ToggleLineNums, "line numbers"),
 		Search:         bind(k.Search, "search file names"),
 		SearchContent:  bind(k.SearchContent, "search file contents"),
+		Settings:       bind(k.Settings, "settings"),
 		Help:           bind(k.Help, "toggle help"),
 	}
 }

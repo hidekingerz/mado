@@ -85,6 +85,7 @@ type Keys struct {
 	ToggleLineNums []string `toml:"toggle_line_numbers"`
 	Search         []string `toml:"search"`
 	SearchContent  []string `toml:"search_content"`
+	Settings       []string `toml:"settings"`
 	Help           []string `toml:"help"`
 }
 
@@ -134,6 +135,7 @@ func Default() Config {
 			ToggleLineNums: []string{"n"},
 			Search:         []string{"/"},
 			SearchContent:  []string{"ctrl+f"},
+			Settings:       []string{","},
 			Help:           []string{"?"},
 		},
 	}
@@ -222,6 +224,7 @@ func merge(dst *Config, src Config) {
 	mergeKeys(&dst.Keys.ToggleLineNums, src.Keys.ToggleLineNums)
 	mergeKeys(&dst.Keys.Search, src.Keys.Search)
 	mergeKeys(&dst.Keys.SearchContent, src.Keys.SearchContent)
+	mergeKeys(&dst.Keys.Settings, src.Keys.Settings)
 	mergeKeys(&dst.Keys.Help, src.Keys.Help)
 }
 

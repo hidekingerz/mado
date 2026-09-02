@@ -954,3 +954,11 @@ func TestRevealOutsideRootLeavesSidebarAlone(t *testing.T) {
 		t.Errorf("cursor = %q, want top.md untouched", got)
 	}
 }
+
+func TestHelpListsSettingsKey(t *testing.T) {
+	m := testModel(t, map[string]string{"a.md": "# A"})
+	m = update(t, m, keyRune('?'))
+	if v := m.View(); !strings.Contains(v, "settings") {
+		t.Errorf("help should list the settings key:\n%s", v)
+	}
+}
