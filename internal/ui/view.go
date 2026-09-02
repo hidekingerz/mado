@@ -109,7 +109,7 @@ func (m Model) renderSidebar() string {
 		text += strings.Repeat(" ", innerW-lipgloss.Width(text))
 
 		switch {
-		case idx == m.cursor && m.focus == focusSidebar:
+		case idx == m.cursor && m.focus == focusSidebar && !m.search.open:
 			text = m.styles.selection.Render(text)
 		case idx == m.cursor:
 			text = m.styles.cursor.Render(text)
@@ -124,7 +124,7 @@ func (m Model) renderSidebar() string {
 	}
 
 	borderColor := m.cfg.Theme.BorderColor
-	if m.focus == focusSidebar {
+	if m.focus == focusSidebar && !m.search.open {
 		borderColor = m.cfg.Theme.AccentColor
 	}
 	return lipgloss.NewStyle().
@@ -143,6 +143,8 @@ func (m Model) renderContent() string {
 
 	var body string
 	switch {
+	case m.search.open:
+		body = m.renderSearch(innerW, innerH)
 	case m.showHelp:
 		body = m.renderHelp(innerW, innerH)
 	case len(m.tabs) == 0:
@@ -152,7 +154,7 @@ func (m Model) renderContent() string {
 	}
 
 	borderColor := m.cfg.Theme.BorderColor
-	if m.focus == focusContent {
+	if m.focus == focusContent || m.search.open {
 		borderColor = m.cfg.Theme.AccentColor
 	}
 	return lipgloss.NewStyle().
@@ -188,6 +190,8 @@ func (m Model) renderHelp(w, h int) string {
 		{k.ToggleMode.Help().Key, k.ToggleMode.Help().Desc},
 		{k.ToggleAllFiles.Help().Key, k.ToggleAllFiles.Help().Desc},
 		{k.ToggleLineNums.Help().Key, k.ToggleLineNums.Help().Desc},
+		{k.Search.Help().Key, k.Search.Help().Desc},
+		{k.SearchContent.Help().Key, k.SearchContent.Help().Desc},
 		{k.Help.Help().Key, k.Help.Help().Desc},
 		{k.Quit.Help().Key, k.Quit.Help().Desc},
 	}
@@ -204,7 +208,8 @@ func (m Model) renderHelp(w, h int) string {
 		pad := strings.Repeat(" ", keyW-lipgloss.Width(r[0]))
 		b.WriteString("  " + m.styles.accent.Render(r[0]) + pad + "  " + r[1] + "\n")
 	}
-	b.WriteString("\n" + m.styles.dimmed.Render("Mouse: click to select/open, wheel to scroll,\nclick a tab to switch, ✕ to close."))
+	b.WriteString("\n" + m.styles.dimmed.Render("Search: type to filter, tab switches names/contents,\n↑/↓ select, enter opens, esc closes."))
+	b.WriteString("\n\n" + m.styles.dimmed.Render("Mouse: click to select/open, wheel to scroll,\nclick a tab to switch, ✕ to close."))
 	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, b.String())
 }
 
@@ -215,7 +220,12 @@ func (m Model) renderStatusBar() string {
 	if m.watcher != nil {
 		left += "[WATCH] "
 	}
-	if t := m.activeTab(); t != nil {
+	if m.search.open {
+		left += "[SEARCH " + strings.ToUpper(m.search.target.String()) + "]  " + m.root.Path
+		if sum := m.searchSummary(); sum != "" {
+			left += "  " + sum
+		}
+	} else if t := m.activeTab(); t != nil {
 		left += "[" + m.mode.String() + "]  " + t.path
 		left += fmt.Sprintf("  %3.0f%%", t.vp.ScrollPercent()*100)
 		if t.renderErr != "" {
@@ -231,6 +241,9 @@ func (m Model) renderStatusBar() string {
 	// names from disk.
 	left = termsafe.String(left)
 	right := m.keys.Help.Help().Key + " help │ " + m.keys.Quit.Help().Key + " quit "
+	if m.search.open {
+		right = "enter open │ tab " + m.search.target.Toggle().String() + " │ esc close "
+	}
 
 	gap := m.width - lipgloss.Width(left) - lipgloss.Width(right)
 	if gap < 1 {

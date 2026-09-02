@@ -13,6 +13,7 @@
 - **Inline image preview** — PNG/JPEG/GIF files render as half-block pixel art fitted to the pane
 - **Sidebar file tree** rooted at the current directory (lazy-loaded, collapsible; `a` toggles between markdown-only and all files). The tree follows the file being viewed: opening a file or switching tabs expands its directories and moves the cursor onto it
 - **Multiple open files** — each file opens in its own tab
+- **File search** — `/` finds files by name, `ctrl+f` by content, as you type; a content hit opens the file scrolled to its line. Directories such as `node_modules` are skipped, and the list is configurable
 - **Mouse support** — click files to open, click tabs to switch, click `✕` to close, scroll wheel in both panes
 - **Auto-reload** — `--watch` re-renders open files as they change on disk, so mado can sit in a pane as a live view
 - **Remote commands** — `mado --remote open FILE` adds a tab to the instance already on screen instead of starting a second one
@@ -70,6 +71,31 @@ source), `n` toggles line numbers, like vi's `:set nu`. Wrapped
 continuation rows get a blank gutter, so the numbers track the file's
 lines rather than the fold.
 
+### Search
+
+`/` opens the search panel over the content pane and finds files by
+name; `ctrl+f` opens it for file contents. Results appear as you type.
+`tab` switches between the two targets without losing the query,
+`↑`/`↓` move through the results, `enter` opens the selected file and
+`esc` puts the panel away. A content hit opens the file scrolled to
+the matching line. Typed letters go to the query, so `q` and `?` do
+not act while the prompt is open; `ctrl+c` still quits.
+
+Matching is a plain substring — case-insensitive unless the query
+contains an upper-case letter, and against the path relative to the
+root, so `docs/plan` narrows by directory as well as name. The search
+sees what the sidebar could show: markdown files only unless `a` has
+switched to all files, and no dotfiles unless `show_hidden` is on.
+Binary files and files over 8 MB are skipped for content search, and
+the list stops at 1000 hits.
+
+Directories that are never worth searching are left out through
+`[search] exclude` in the config — by default `node_modules`, `.git`,
+`vendor`, `dist`, `build` and `target`. A pattern without a slash
+matches a name at any depth (`node_modules`, `*.log`); one with a
+slash matches a path relative to the root (`docs/drafts`). Setting the
+key replaces the default list, so `exclude = []` searches everything.
+
 ### Auto-reload
 
 By default files are re-read only when you press `r` / `F5`. With
@@ -107,6 +133,8 @@ as text instead of colours.
 | `m`                | toggle reader / source mode     |
 | `a`                | show all files / markdown only  |
 | `n`                | toggle line numbers (source)    |
+| `/`                | search file names               |
+| `ctrl+f`           | search file contents            |
 | `?`                | help                            |
 | `q`/`ctrl+c`       | quit                            |
 
@@ -173,6 +201,9 @@ file_color = "#FFFFFF"     # sidebar text files (known binaries are dimmed)
 width = 32
 show_all_files = false     # true = list non-markdown files too
 show_hidden = false
+
+[search]
+exclude = ["node_modules", ".git", "vendor", "dist", "build", "target"]
 
 [keys]
 quit = ["q", "ctrl+c"]

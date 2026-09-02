@@ -170,3 +170,79 @@ func TestLoadGeneralWatch(t *testing.T) {
 		t.Error("watch = true was not picked up from the config")
 	}
 }
+
+func TestSearchKeys(t *testing.T) {
+	def := Default()
+	if got := def.Keys.Search; len(got) != 1 || got[0] != "/" {
+		t.Errorf("default Search = %v, want [/]", got)
+	}
+	if got := def.Keys.SearchContent; len(got) != 1 || got[0] != "ctrl+f" {
+		t.Errorf("default SearchContent = %v, want [ctrl+f]", got)
+	}
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte("[keys]\nsearch = [\"f\"]\nsearch_content = [\"F\"]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Keys.Search) != 1 || cfg.Keys.Search[0] != "f" {
+		t.Errorf("Search = %v, want [f]", cfg.Keys.Search)
+	}
+	if len(cfg.Keys.SearchContent) != 1 || cfg.Keys.SearchContent[0] != "F" {
+		t.Errorf("SearchContent = %v, want [F]", cfg.Keys.SearchContent)
+	}
+}
+
+func TestSearchExclude(t *testing.T) {
+	def := Default().Search.Exclude
+	has := func(list []string, s string) bool {
+		for _, x := range list {
+			if x == s {
+				return true
+			}
+		}
+		return false
+	}
+	if !has(def, "node_modules") || !has(def, ".git") {
+		t.Errorf("default exclude = %v, want node_modules and .git among them", def)
+	}
+
+	// Absent key keeps the defaults.
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte("[search]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !has(cfg.Search.Exclude, "node_modules") {
+		t.Errorf("absent key: exclude = %v, want defaults", cfg.Search.Exclude)
+	}
+
+	// A list replaces the defaults rather than adding to them.
+	if err := os.WriteFile(path, []byte("[search]\nexclude = [\"tmp\", \"*.bak\"]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err = Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Search.Exclude) != 2 || cfg.Search.Exclude[0] != "tmp" || cfg.Search.Exclude[1] != "*.bak" {
+		t.Errorf("exclude = %v, want [tmp *.bak]", cfg.Search.Exclude)
+	}
+
+	// An explicit empty list searches everything.
+	if err := os.WriteFile(path, []byte("[search]\nexclude = []\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err = Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Search.Exclude) != 0 {
+		t.Errorf("exclude = %v, want empty", cfg.Search.Exclude)
+	}
+}
