@@ -38,6 +38,17 @@ width = 32            # columns (clamped to half the terminal width)
 show_all_files = false # false = only markdown files are listed
 show_hidden = false    # show dotfiles / dot-directories
 
+[search]
+# Files and directories the search panel leaves out, as glob patterns.
+# A pattern without a slash matches a name at any depth ("node_modules"
+# skips that directory wherever it is, "*.log" every log file); one
+# with a slash matches a path relative to the root ("docs/drafts").
+# Setting this key replaces the default list; exclude = [] searches
+# everything. The search otherwise follows the sidebar's filter:
+# markdown only unless all files are shown, no dotfiles unless
+# show_hidden is on.
+exclude = ["node_modules", ".git", "vendor", "dist", "build", "target"]
+
 [keys]
 # Each action takes a list of keys in bubbletea syntax:
 # single characters ("q"), named keys ("enter", "esc", "up", "pgdown",
@@ -59,4 +70,9 @@ reload = ["r", "f5"]
 toggle_mode = ["m"]          # switch reader / source view
 toggle_all_files = ["a"]     # show all files / markdown only in sidebar
 toggle_line_numbers = ["n"]  # line numbers in source view, like vi's :set nu
+search = ["/"]               # find files by name
+search_content = ["ctrl+f"]  # find files by content
+# Inside the search prompt the keys are fixed: typed characters edit
+# the query, tab switches names/contents, up/down (ctrl+p/ctrl+n)
+# move, enter opens, esc closes, ctrl+u clears, ctrl+w deletes a word.
 help = ["?"]

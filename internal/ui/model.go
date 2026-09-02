@@ -22,6 +22,7 @@ import (
 	"github.com/hidekingerz/mado/internal/config"
 	"github.com/hidekingerz/mado/internal/filetree"
 	"github.com/hidekingerz/mado/internal/remote"
+	"github.com/hidekingerz/mado/internal/search"
 	"github.com/hidekingerz/mado/internal/termsafe"
 	"github.com/hidekingerz/mado/internal/watch"
 )
@@ -65,8 +66,9 @@ type tab struct {
 	binary       bool        // content is binary; raw holds a placeholder, not file bytes
 	img          image.Image // decoded image; nil = not an image tab
 	vp           viewport.Model
-	rendered     int // viewport width the content was last rendered at; 0 = never
-	renderedH    int // viewport height the content was last rendered at; image art depends on it
+	content      string // what the viewport shows, kept for finding a search hit's row
+	rendered     int    // viewport width the content was last rendered at; 0 = never
+	renderedH    int    // viewport height the content was last rendered at; image art depends on it
 	renderedMode viewMode
 	renderedNums bool // line-number state the content was last rendered with
 	renderErr    string
@@ -130,6 +132,9 @@ type Model struct {
 	tabs       []*tab
 	active     int
 	tabRegions []tabRegion
+
+	// search is the find-by-name / find-in-files panel.
+	search searchState
 
 	// watcher is nil unless auto-reload is enabled; when set, changes
 	// under the open files and the sidebar tree trigger a reload.
@@ -252,6 +257,7 @@ func (m *Model) handleRemote(req *remote.Request) {
 		// The file is the point of the command: show it, whatever was
 		// on screen before.
 		m.showHelp = false
+		m.closeSearch()
 		m.focus = focusContent
 		req.Respond(nil)
 	case remote.CmdFocus:
@@ -259,6 +265,7 @@ func (m *Model) handleRemote(req *remote.Request) {
 			if t.path == req.Path {
 				m.active = i
 				m.showHelp = false
+				m.closeSearch()
 				m.focus = focusContent
 				m.ensureRendered(t)
 				req.Respond(nil)
@@ -341,14 +348,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case remoteRequestMsg:
 		m.handleRemote(msg.req)
 		return m, waitForRequest(m.srv)
+	case searchResultMsg:
+		m.handleSearchResult(msg)
+		return m, nil
 	}
 	return m, nil
 }
 
 func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	k := m.keys
+	// While the search prompt has the keyboard, typed characters are
+	// the query — "q" included. Only a quit key that cannot be typed
+	// (ctrl+c) still quits.
+	if m.search.open && (msg.Type == tea.KeyRunes || msg.Type == tea.KeySpace || !key.Matches(msg, k.Quit)) {
+		return m.handleSearchKey(msg)
+	}
 	switch {
 	case key.Matches(msg, k.Quit):
+		m.cancelSearch()
 		if m.watcher != nil {
 			m.watcher.Close()
 		}
@@ -356,6 +373,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.srv.Close()
 		}
 		return m, tea.Quit
+	case key.Matches(msg, k.Search):
+		return m, m.openSearch(search.Names)
+	case key.Matches(msg, k.SearchContent):
+		return m, m.openSearch(search.Contents)
 	case key.Matches(msg, k.Help):
 		m.showHelp = !m.showHelp
 		return m, nil
@@ -443,6 +464,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	if m.search.open {
+		return m.handleSearchMouse(msg)
+	}
 	inSidebar := m.sidebar && msg.X < m.sidebarWidth()
 
 	switch msg.Button {
@@ -715,6 +739,7 @@ func (m *Model) ensureRendered(t *tab) {
 		}
 	}
 	off := t.vp.YOffset
+	t.content = content
 	t.vp.SetContent(content)
 	t.vp.SetYOffset(off)
 	t.rendered = w
@@ -869,6 +894,7 @@ func (m *Model) layoutTabs() {
 	m.computeTabRegions()
 	m.clampTree()
 	m.scrollCursorIntoView()
+	m.clampSearch()
 }
 
 func baseName(path string) string {

@@ -13,6 +13,7 @@ type Config struct {
 	General General `toml:"general"`
 	Theme   Theme   `toml:"theme"`
 	Sidebar Sidebar `toml:"sidebar"`
+	Search  Search  `toml:"search"`
 	Keys    Keys    `toml:"keys"`
 }
 
@@ -52,6 +53,16 @@ type Sidebar struct {
 	ShowHidden   bool `toml:"show_hidden"`
 }
 
+// Search controls the file search panel.
+type Search struct {
+	// Exclude lists glob patterns for files and directories the search
+	// leaves out. A pattern without a slash matches a name at any
+	// depth ("node_modules", "*.log"); one with a slash matches a
+	// path relative to the root ("docs/drafts"). Setting the key
+	// replaces the default list; an empty list searches everything.
+	Exclude []string `toml:"exclude"`
+}
+
 // Keys maps actions to one or more key names (bubbletea key syntax,
 // e.g. "ctrl+w", "shift+tab", "enter", "q").
 type Keys struct {
@@ -72,6 +83,8 @@ type Keys struct {
 	ToggleMode     []string `toml:"toggle_mode"`
 	ToggleAllFiles []string `toml:"toggle_all_files"`
 	ToggleLineNums []string `toml:"toggle_line_numbers"`
+	Search         []string `toml:"search"`
+	SearchContent  []string `toml:"search_content"`
 	Help           []string `toml:"help"`
 }
 
@@ -98,6 +111,9 @@ func Default() Config {
 			ShowAllFiles: false,
 			ShowHidden:   false,
 		},
+		Search: Search{
+			Exclude: []string{"node_modules", ".git", "vendor", "dist", "build", "target"},
+		},
 		Keys: Keys{
 			Quit:           []string{"q", "ctrl+c"},
 			Up:             []string{"up", "k"},
@@ -116,6 +132,8 @@ func Default() Config {
 			ToggleMode:     []string{"m"},
 			ToggleAllFiles: []string{"a"},
 			ToggleLineNums: []string{"n"},
+			Search:         []string{"/"},
+			SearchContent:  []string{"ctrl+f"},
 			Help:           []string{"?"},
 		},
 	}
@@ -179,6 +197,12 @@ func merge(dst *Config, src Config) {
 	dst.Sidebar.ShowAllFiles = dst.Sidebar.ShowAllFiles || src.Sidebar.ShowAllFiles
 	dst.Sidebar.ShowHidden = dst.Sidebar.ShowHidden || src.Sidebar.ShowHidden
 
+	// nil means the key was absent; an explicit `exclude = []` is a
+	// request to search everything.
+	if src.Search.Exclude != nil {
+		dst.Search.Exclude = src.Search.Exclude
+	}
+
 	mergeKeys(&dst.Keys.Quit, src.Keys.Quit)
 	mergeKeys(&dst.Keys.Up, src.Keys.Up)
 	mergeKeys(&dst.Keys.Down, src.Keys.Down)
@@ -196,6 +220,8 @@ func merge(dst *Config, src Config) {
 	mergeKeys(&dst.Keys.ToggleMode, src.Keys.ToggleMode)
 	mergeKeys(&dst.Keys.ToggleAllFiles, src.Keys.ToggleAllFiles)
 	mergeKeys(&dst.Keys.ToggleLineNums, src.Keys.ToggleLineNums)
+	mergeKeys(&dst.Keys.Search, src.Keys.Search)
+	mergeKeys(&dst.Keys.SearchContent, src.Keys.SearchContent)
 	mergeKeys(&dst.Keys.Help, src.Keys.Help)
 }
 
