@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -176,6 +177,9 @@ func (m *Model) clampSettings() {
 // field are dispatched by its kind.
 func (m Model) handleSettingsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	s := &m.settings
+	if s.editing == editText {
+		return m.handleSettingsTextKey(msg)
+	}
 	if key.Matches(msg, m.keys.Settings) {
 		m.closeSettings()
 		return m, nil
@@ -195,6 +199,8 @@ func (m Model) handleSettingsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.moveSettingsCursor(-len(s.rows))
 	case tea.KeyEnd:
 		m.moveSettingsCursor(len(s.rows))
+	case tea.KeyEnter, tea.KeySpace, tea.KeyLeft, tea.KeyRight, tea.KeyBackspace:
+		return m.editSetting(msg)
 	case tea.KeyRunes:
 		switch string(msg.Runes) {
 		case "k":
@@ -368,5 +374,133 @@ func (m Model) settingsHint() string {
 		return "enter capture │ backspace remove │ esc close "
 	default:
 		return "enter edit │ esc close "
+	}
+}
+
+// ── editing ─────────────────────────────────────────────────────────
+
+// editSetting starts or performs the edit msg asks for on the
+// selected field, by its kind.
+func (m Model) editSetting(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	f, ok := m.selectedSetting()
+	if !ok {
+		return m, nil
+	}
+	cur := f.Get(&m.cfg)
+	switch f.Kind {
+	case config.KindBool:
+		if msg.Type == tea.KeyEnter || msg.Type == tea.KeySpace {
+			cmd, _ := m.commitSetting(f, func(c *config.Config) error {
+				return f.Set(c, strconv.FormatBool(cur != "true"))
+			})
+			return m, cmd
+		}
+	case config.KindEnum:
+		var step int
+		switch msg.Type {
+		case tea.KeyEnter, tea.KeyRight:
+			step = 1
+		case tea.KeyLeft:
+			step = -1
+		default:
+			return m, nil
+		}
+		next := cycleOption(f.Options, cur, step)
+		if next == config.CustomOption {
+			m.startSettingsText(cur, f.Options)
+			return m, nil
+		}
+		cmd, _ := m.commitSetting(f, func(c *config.Config) error { return f.Set(c, next) })
+		return m, cmd
+	case config.KindText, config.KindInt, config.KindList:
+		if msg.Type == tea.KeyEnter {
+			m.startSettingsText(cur, nil)
+		}
+	}
+	return m, nil
+}
+
+// cycleOption returns the option step places from cur, wrapping. A
+// value that is not an option (a custom style path) counts as the
+// custom slot, which is the last option.
+func cycleOption(options []string, cur string, step int) string {
+	i := len(options) - 1
+	for j, o := range options {
+		if o == cur {
+			i = j
+			break
+		}
+	}
+	n := len(options)
+	return options[((i+step)%n+n)%n]
+}
+
+// startSettingsText opens the inline prompt holding value. A value
+// that is one of options (a built-in style, not a path) is not worth
+// editing, so the prompt starts empty then.
+func (m *Model) startSettingsText(value string, options []string) {
+	for _, o := range options {
+		if o == value {
+			value = ""
+			break
+		}
+	}
+	m.settings.editing = editText
+	m.settings.input = value
+}
+
+// handleSettingsTextKey edits the prompt. enter commits, esc cancels;
+// every other key edits the text the way the search prompt does.
+func (m Model) handleSettingsTextKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	s := &m.settings
+	switch msg.Type {
+	case tea.KeyEsc:
+		s.editing = editNone
+	case tea.KeyEnter:
+		f, ok := m.selectedSetting()
+		if !ok {
+			s.editing = editNone
+			return m, nil
+		}
+		input := s.input
+		cmd, ok := m.commitSetting(f, func(c *config.Config) error { return f.Set(c, input) })
+		if ok {
+			s.editing = editNone
+		}
+		return m, cmd
+	default:
+		if next, ok := editPrompt(s.input, msg); ok {
+			s.input = next
+		}
+	}
+	return m, nil
+}
+
+// commitSetting applies change to a copy of the config, then puts the
+// result on screen and saves it. A rejected change is reported in the
+// status bar and nothing else happens. The command, if any, waits on
+// a watcher the change started.
+func (m *Model) commitSetting(f config.Field, change func(*config.Config) error) (tea.Cmd, bool) {
+	next := m.cfg
+	if err := change(&next); err != nil {
+		m.statusMsg = err.Error()
+		return nil, false
+	}
+	m.statusMsg = ""
+	cmd := m.applyConfig(next)
+	m.saveSetting(f)
+	return cmd, true
+}
+
+// saveSetting writes the field's current value to the config file.
+// Failing to save does not undo the change on screen; the status bar
+// says what happened.
+func (m *Model) saveSetting(f config.Field) {
+	if m.configPath == "" {
+		m.statusMsg = "not saved: no config path"
+		return
+	}
+	if err := config.Update(m.configPath, f.Table, f.Key, f.Value(&m.cfg)); err != nil {
+		m.statusMsg = "save failed: " + err.Error()
 	}
 }
