@@ -75,4 +75,9 @@ search_content = ["ctrl+f"]  # find files by content
 # Inside the search prompt the keys are fixed: typed characters edit
 # the query, tab switches names/contents, up/down (ctrl+p/ctrl+n)
 # move, enter opens, esc closes, ctrl+u clears, ctrl+w deletes a word.
+settings = [","]             # open the settings panel
+# The panel edits every key in this file in place and saves it here;
+# comments and ordering are kept. Inside it the keys are fixed: ↑/↓
+# (k/j) move, enter / space / ←/→ edit, backspace removes an action's
+# last key, esc closes, ctrl+c quits.
 help = ["?"]

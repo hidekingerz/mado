@@ -94,6 +94,7 @@ func main() {
 	if err != nil {
 		fatal(err)
 	}
+	m = m.WithConfigPath(*configPath)
 	if srv, err := remote.Listen(remote.DefaultPath()); err != nil {
 		warn(fmt.Errorf("remote commands disabled: %w", err))
 	} else {
