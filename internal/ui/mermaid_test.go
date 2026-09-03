@@ -1,8 +1,13 @@
 package ui
 
 import (
+	"io"
 	"strings"
 	"testing"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/sirupsen/logrus"
 
 	"github.com/hidekingerz/mado/internal/config"
 )
@@ -84,5 +89,71 @@ func TestMermaidOffKeepsTheSource(t *testing.T) {
 	m.applyConfig(next)
 	if c := m.tabs[0].content; !strings.Contains(c, "┌") {
 		t.Errorf("turning mermaid on re-renders the open tab:\n%s", c)
+	}
+}
+
+// drawnWidth is the widest line of the test flowchart once drawn.
+func drawnWidth(t *testing.T) int {
+	t.Helper()
+	drawn, ok := drawMermaid("flowchart TD\n    A[Start] --> B[End]", 1000)
+	if !ok {
+		t.Fatal("the test flowchart should draw")
+	}
+	w := 0
+	for _, l := range strings.Split(drawn, "\n") {
+		if n := lipgloss.Width(l); n > w {
+			w = n
+		}
+	}
+	return w
+}
+
+func TestRenderMermaidBlocksFitBoundMatchesGlamour(t *testing.T) {
+	// Glamour indents the document by 2 on each side and the code block
+	// by 2 more, so a drawing needs width-6 columns to survive wrapping.
+	d := drawnWidth(t)
+	if got := renderMermaidBlocks(flowchart, d+6); !strings.Contains(got, "```text") {
+		t.Errorf("a drawing of %d columns fits a wrap width of %d:\n%s", d, d+6, got)
+	}
+	if got := renderMermaidBlocks(flowchart, d+5); got != flowchart {
+		t.Errorf("a drawing of %d columns does not fit a wrap width of %d and must stay source:\n%s", d, d+5, got)
+	}
+}
+
+func TestReaderModeNeverWrapsADrawnDiagram(t *testing.T) {
+	// A window exactly as wide as the drawing needs — the pane's two
+	// border columns, glamour's wrap width two inside that, and the six
+	// columns of margin and indent — so the boxes must come through
+	// glamour intact, one drawn line per rendered line.
+	d := drawnWidth(t)
+	m := testModel(t, map[string]string{"a.md": mermaidDoc}, "a.md")
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyCtrlB}) // hide the sidebar: content = full width
+	m = update(t, m, tea.WindowSizeMsg{Width: d + 10, Height: 40})
+	c := m.tabs[0].content
+	if !strings.Contains(c, "┌") {
+		t.Fatalf("the diagram should be drawn at width %d:\n%s", d+10, c)
+	}
+	drawn, _ := drawMermaid("flowchart TD\n    A[Start] --> B[End]", 1000)
+	want := strings.Count(strings.TrimRight(drawn, "\n"), "\n") + 1
+	got := 0
+	for _, l := range strings.Split(c, "\n") {
+		if strings.ContainsAny(l, "┌│└▼┐┘") {
+			got++
+		}
+	}
+	if got != want {
+		t.Errorf("drawn lines in the rendered content = %d, want %d (a wrapped diagram adds lines):\n%s", got, want, c)
+	}
+	m = update(t, m, tea.WindowSizeMsg{Width: d + 9, Height: 40})
+	if strings.Contains(m.tabs[0].content, "┌") {
+		t.Errorf("one column narrower the drawing no longer fits and the source must show:\n%s", m.tabs[0].content)
+	}
+}
+
+func TestMermaidRendererCannotWriteToTheTerminal(t *testing.T) {
+	// The drawing library logs through logrus's global logger, which
+	// would print straight to stderr underneath the TUI.
+	if logrus.StandardLogger().Out != io.Discard {
+		t.Error("logrus output should be discarded")
 	}
 }
