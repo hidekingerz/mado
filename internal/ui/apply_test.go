@@ -92,6 +92,45 @@ func TestApplyConfigSidebarReloadsTheTree(t *testing.T) {
 	}
 }
 
+func TestFileChangedAfterWatcherStopsDoesNotPanic(t *testing.T) {
+	m := testModel(t, map[string]string{"a.md": "# A"}, "a.md")
+	next := m.cfg
+	next.General.Watch = true
+	if cmd := m.applyConfig(next); cmd == nil {
+		t.Fatal("starting the watcher should hand back a command that waits on it")
+	}
+	t.Cleanup(func() {
+		if m.watcher != nil {
+			m.watcher.Close()
+		}
+	})
+	next.General.Watch = false
+	m.applyConfig(next)
+	if m.watcher != nil {
+		t.Fatal("watch off should close the watcher")
+	}
+	got, cmd := m.Update(fileChangedMsg{})
+	m = got.(Model)
+	if cmd != nil {
+		// A non-nil command here would be the regression itself: it is
+		// waitForChange(nil), and bubbletea would invoke it on its next
+		// tick, dereferencing the nil watcher and panicking. Since that
+		// invocation is what actually panics, call it here too so a
+		// future regression that hands back a non-nil-but-still-broken
+		// command is still caught by this test, not by a user's crash.
+		defer func() {
+			if r := recover(); r != nil {
+				t.Fatalf("invoking the command panicked: %v", r)
+			}
+		}()
+		cmd()
+		t.Error("a fileChangedMsg with no watcher should not hand back a command")
+	}
+	if !strings.Contains(m.View(), "a.md") {
+		t.Error("the reload should still happen: the tree should still render")
+	}
+}
+
 func TestApplyConfigStartsAndStopsTheWatcher(t *testing.T) {
 	m := testModel(t, map[string]string{"a.md": "# A"}, "a.md")
 	t.Cleanup(func() {
