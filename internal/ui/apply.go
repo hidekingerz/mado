@@ -5,7 +5,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/hidekingerz/mado/internal/config"
-	"github.com/hidekingerz/mado/internal/filetree"
 	"github.com/hidekingerz/mado/internal/watch"
 )
 
@@ -60,12 +59,23 @@ func (m *Model) applyConfig(next config.Config) tea.Cmd {
 		}
 		m.ensureRendered(m.activeTab())
 	}
-	if next.Sidebar != prev.Sidebar {
-		m.treeOpts = filetree.Options{
-			ShowAllFiles: next.Sidebar.ShowAllFiles,
-			ShowHidden:   next.Sidebar.ShowHidden,
-		}
+	// treeOpts fields are compared and overwritten individually, not
+	// wholesale on any Sidebar change: ShowAllFiles can also be flipped
+	// at runtime by the "a" key without touching m.cfg, and a config
+	// change to a sibling field like Width must not revert that.
+	treeChanged := false
+	if next.Sidebar.ShowAllFiles != prev.Sidebar.ShowAllFiles {
+		m.treeOpts.ShowAllFiles = next.Sidebar.ShowAllFiles
+		treeChanged = true
+	}
+	if next.Sidebar.ShowHidden != prev.Sidebar.ShowHidden {
+		m.treeOpts.ShowHidden = next.Sidebar.ShowHidden
+		treeChanged = true
+	}
+	if treeChanged {
 		m.reloadTree()
+	}
+	if treeChanged || next.Sidebar.Width != prev.Sidebar.Width {
 		m.layoutTabs()
 	}
 	var cmd tea.Cmd

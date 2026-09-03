@@ -92,6 +92,26 @@ func TestApplyConfigSidebarReloadsTheTree(t *testing.T) {
 	}
 }
 
+func TestApplyConfigSidebarWidthDoesNotRevertRuntimeShowAllFiles(t *testing.T) {
+	m := testModel(t, map[string]string{"a.md": "# A", "notes.txt": "hi"})
+	if strings.Contains(m.View(), "notes.txt") {
+		t.Fatal("txt files are hidden by default")
+	}
+	m = update(t, m, keyRune('a')) // toggle_all_files: runtime-only, does not touch m.cfg
+	if !strings.Contains(m.View(), "notes.txt") {
+		t.Fatal("'a' should show notes.txt")
+	}
+	next := m.cfg
+	next.Sidebar.Width = 40 // the only sidebar change is Width
+	m.applyConfig(next)
+	if !strings.Contains(m.View(), "notes.txt") {
+		t.Error("a config change to an unrelated sidebar field should not revert the 'a' toggle")
+	}
+	if m.sidebarWidth() != 40 {
+		t.Errorf("sidebar width = %d, want 40", m.sidebarWidth())
+	}
+}
+
 func TestFileChangedAfterWatcherStopsDoesNotPanic(t *testing.T) {
 	m := testModel(t, map[string]string{"a.md": "# A"}, "a.md")
 	next := m.cfg
