@@ -1,23 +1,39 @@
 # mado
 
-**mado** (窓, "window") is a TUI markdown viewer written in Go, built on
+**mado** (窓, "window") is a terminal reader for the Markdown in a
+directory — a project's docs, a notes folder — written in Go on
 [Bubble Tea](https://github.com/charmbracelet/bubbletea) and
-[Glamour](https://github.com/charmbracelet/glamour).
+[Glamour](https://github.com/charmbracelet/glamour). It renders the
+files as you browse them, with a file tree, tabs, search, and diagrams
+to help you find your way around.
 
 ![mado screenshot](docs/assets/screenshot.png)
 
 ## Features
 
+### Reading
+
 - **Markdown rendering** in the terminal via Glamour
 - **Reader / source modes** — toggle between a clean document view and syntax-highlighted raw markdown with one key
+- **Line numbers** in source view (and for non-markdown files), like vi's `:set nu`
 - **Mermaid diagrams** — ```mermaid blocks are drawn as box-character diagrams in the reader view, no browser needed
 - **Inline image preview** — PNG/JPEG/GIF files render as half-block pixel art fitted to the pane
+
+### Finding your way
+
 - **Sidebar file tree** rooted at the current directory (lazy-loaded, collapsible; `a` toggles between markdown-only and all files). The tree follows the file being viewed: opening a file or switching tabs expands its directories and moves the cursor onto it
 - **Multiple open files** — each file opens in its own tab
 - **File search** — `/` finds files by name, `ctrl+f` by content, as you type; a content hit opens the file scrolled to its line. Directories such as `node_modules` are skipped, and the list is configurable
 - **Mouse support** — click files to open, click tabs to switch, click `✕` to close, scroll wheel in both panes
+
+### Alongside other tools
+
 - **Auto-reload** — `--watch` re-renders open files as they change on disk, so mado can sit in a pane as a live view
 - **Remote commands** — `mado --remote open FILE` adds a tab to the instance already on screen instead of starting a second one
+- **Content is shown, never obeyed** — control characters render in caret notation rather than being passed to the terminal, so a file being viewed can't hijack your clipboard, window title, or cursor
+
+### Making it yours
+
 - **TOML configuration** — `~/.config/mado/config.toml`
 - **Configurable keyboard shortcuts** — every action can be rebound
 - **Settings panel** — `,` opens every setting for editing in place; changes apply at once and are written back to the config file, one key at a time, leaving comments alone
@@ -113,25 +129,11 @@ matches a name at any depth (`node_modules`, `*.log`); one with a
 slash matches a path relative to the root (`docs/drafts`). Setting the
 key replaces the default list, so `exclude = []` searches everything.
 
-### Settings
+### Mouse
 
-`,` opens a settings panel over the content pane listing every key
-from `config.toml` under its table. `↑`/`↓` (or `k`/`j`) move between
-them, and the footer describes the selected one with its default.
-Editing depends on the kind of value: `enter` or `space` flips a
-switch, `←`/`→` step through a choice, `enter` opens an inline prompt
-for text, numbers and lists (`enter` applies, `esc` cancels), and for
-a key binding `enter` captures the next key you press — whatever it
-is, `esc` included — while `backspace` removes the action's last key.
-`esc` or `,` closes the panel. `ctrl+c` still quits.
-
-A change takes effect the moment it is made: colors repaint, a new
-style re-renders the open tabs, the tree reloads, the watcher starts
-or stops, and a rebound key works from the next press. It is also
-written to the config file at once — only that key, so a hand-written
-file keeps its comments and order. A value that will not do (a color
-that is not `#RRGGBB` or `0`–`255`, a key another action already has)
-is refused with a note in the status bar and nothing changes.
+- Click a file in the sidebar to open it; click a directory to expand or collapse it.
+- Click a tab to switch to it; click the `✕` on a tab to close it.
+- Scroll wheel scrolls whichever pane is under the pointer.
 
 ### Auto-reload
 
@@ -152,35 +154,6 @@ so a file cannot set your clipboard, rewrite the window title, or move
 the cursor to overwrite what is on screen. That holds for file names in
 the sidebar too. It is why an ANSI-coloured log shows its escape codes
 as text instead of colours.
-
-### Default key bindings
-
-| Key                | Action                          |
-| ------------------ | ------------------------------- |
-| `↑`/`k`, `↓`/`j`   | move cursor / scroll            |
-| `enter`/`l`        | open file / expand directory    |
-| `esc`/`h`          | focus the sidebar               |
-| `tab`/`]`          | next tab                        |
-| `shift+tab`/`[`    | previous tab                    |
-| `x`/`ctrl+w`       | close tab                       |
-| `b`/`ctrl+b`       | toggle sidebar                  |
-| `ctrl+d`/`ctrl+u`  | half page down / up             |
-| `g`/`G`            | go to top / bottom              |
-| `r`/`F5`           | reload tree and current file    |
-| `m`                | toggle reader / source mode     |
-| `a`                | show all files / markdown only  |
-| `n`                | toggle line numbers (source)    |
-| `/`                | search file names               |
-| `ctrl+f`           | search file contents            |
-| `,`                | settings                        |
-| `?`                | help                            |
-| `q`/`ctrl+c`       | quit                            |
-
-### Mouse
-
-- Click a file in the sidebar to open it; click a directory to expand or collapse it.
-- Click a tab to switch to it; click the `✕` on a tab to close it.
-- Scroll wheel scrolls whichever pane is under the pointer.
 
 ### Remote commands
 
@@ -217,6 +190,49 @@ predictable enough for someone else to create first and plant a socket
 in. A directory that does not pass turns remote commands off for that
 instance, with a line on stderr saying why; everything else about mado
 still works.
+
+### Settings
+
+`,` opens a settings panel over the content pane listing every key
+from `config.toml` under its table. `↑`/`↓` (or `k`/`j`) move between
+them, and the footer describes the selected one with its default.
+Editing depends on the kind of value: `enter` or `space` flips a
+switch, `←`/`→` step through a choice, `enter` opens an inline prompt
+for text, numbers and lists (`enter` applies, `esc` cancels), and for
+a key binding `enter` captures the next key you press — whatever it
+is, `esc` included — while `backspace` removes the action's last key.
+`esc` or `,` closes the panel. `ctrl+c` still quits.
+
+A change takes effect the moment it is made: colors repaint, a new
+style re-renders the open tabs, the tree reloads, the watcher starts
+or stops, and a rebound key works from the next press. It is also
+written to the config file at once — only that key, so a hand-written
+file keeps its comments and order. A value that will not do (a color
+that is not `#RRGGBB` or `0`–`255`, a key another action already has)
+is refused with a note in the status bar and nothing changes.
+
+### Default key bindings
+
+| Key                | Action                          |
+| ------------------ | ------------------------------- |
+| `↑`/`k`, `↓`/`j`   | move cursor / scroll            |
+| `enter`/`l`        | open file / expand directory    |
+| `esc`/`h`          | focus the sidebar               |
+| `tab`/`]`          | next tab                        |
+| `shift+tab`/`[`    | previous tab                    |
+| `x`/`ctrl+w`       | close tab                       |
+| `b`/`ctrl+b`       | toggle sidebar                  |
+| `ctrl+d`/`ctrl+u`  | half page down / up             |
+| `g`/`G`            | go to top / bottom              |
+| `r`/`F5`           | reload tree and current file    |
+| `m`                | toggle reader / source mode     |
+| `a`                | show all files / markdown only  |
+| `n`                | toggle line numbers (source)    |
+| `/`                | search file names               |
+| `ctrl+f`           | search file contents            |
+| `,`                | settings                        |
+| `?`                | help                            |
+| `q`/`ctrl+c`       | quit                            |
 
 ## Configuration
 
