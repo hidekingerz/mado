@@ -1,23 +1,39 @@
 package ui
 
 import (
+	"io"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/pgavlin/mermaid-ascii/pkg/diagram"
 	"github.com/pgavlin/mermaid-ascii/pkg/render"
+	"github.com/sirupsen/logrus"
 )
 
-// codeBlockMargin is the indent glamour's styles put on both sides of
-// a code block, which a drawn diagram has to fit inside.
-const codeBlockMargin = 2
+// Glamour lays a document out inside a margin of documentMargin
+// columns on each side, and indents a code block's lines by a further
+// codeBlockIndent before wrapping the whole to the requested width; a
+// drawing must fit in what is left or it wraps and falls apart.
+const (
+	documentMargin  = 2
+	codeBlockIndent = 2
+)
+
+// The drawing library reports layout trouble through logrus's global
+// logger, which by default writes to stderr — straight onto the
+// screen underneath the TUI. mado has nothing to say through logrus,
+// so silence it.
+func init() {
+	logrus.SetOutput(io.Discard)
+}
 
 // renderMermaidBlocks replaces every closed ```mermaid fence in md
 // with a ```text fence holding the diagram drawn in box characters,
-// so the reader view shows the picture instead of the source. A
-// block that cannot be drawn, or whose drawing is wider than the
-// width columns available to a code block, is left as it is — the
-// source is still readable, a wrapped drawing is not.
+// so the reader view shows the picture instead of the source. width
+// is the wrap width the document will be rendered at. A block that
+// cannot be drawn, or whose drawing would not fit a code block at
+// that width, is left as it is — the source is still readable, a
+// wrapped drawing is not.
 func renderMermaidBlocks(md string, width int) string {
 	lines := strings.Split(md, "\n")
 	var out []string
@@ -31,7 +47,7 @@ func renderMermaidBlocks(md string, width int) string {
 			out = append(out, lines[i:]...)
 			break
 		}
-		drawn, ok := drawMermaid(strings.Join(lines[i+1:end], "\n"), width-2*codeBlockMargin)
+		drawn, ok := drawMermaid(strings.Join(lines[i+1:end], "\n"), width-2*documentMargin-codeBlockIndent)
 		if !ok {
 			out = append(out, lines[i:end+1]...)
 		} else {
