@@ -20,21 +20,46 @@ func field(t *testing.T, table, key string) Field {
 	return Field{}
 }
 
+// TestFieldsCoverEveryScalarKey walks Config's field structure by
+// reflection — rather than a hand-written list of keys, which would
+// silently stay out of date the day a field is added to Config — and
+// checks that Fields() has exactly one entry for every leaf key,
+// under the table its struct tag names. This intentionally also
+// covers [keys] and [search], not just the "scalar" tables: a field
+// added to any table must show up in the panel.
 func TestFieldsCoverEveryScalarKey(t *testing.T) {
-	want := []string{
-		"general.watch",
-		"theme.style", "theme.default_mode", "theme.source_style",
-		"theme.accent_color", "theme.border_color", "theme.dir_color", "theme.file_color",
-		"theme.selection_fg", "theme.selection_bg", "theme.status_fg", "theme.status_bg",
-		"sidebar.width", "sidebar.show_all_files", "sidebar.show_hidden",
+	want := map[string]bool{}
+	cfgType := reflect.TypeOf(Config{})
+	for i := 0; i < cfgType.NumField(); i++ {
+		tableField := cfgType.Field(i)
+		table := tableField.Tag.Get("toml")
+		if table == "" {
+			t.Fatalf("Config.%s has no toml tag", tableField.Name)
+		}
+		tableType := tableField.Type
+		for j := 0; j < tableType.NumField(); j++ {
+			keyField := tableType.Field(j)
+			key := keyField.Tag.Get("toml")
+			if key == "" {
+				t.Fatalf("%s.%s has no toml tag", tableType.Name(), keyField.Name)
+			}
+			want[table+"."+key] = true
+		}
 	}
+
 	have := map[string]bool{}
 	for _, f := range Fields() {
 		have[f.Table+"."+f.Key] = true
 	}
-	for _, w := range want {
-		if !have[w] {
-			t.Errorf("Fields() lacks %s", w)
+
+	for k := range want {
+		if !have[k] {
+			t.Errorf("Fields() lacks %s, though it is a field of Config", k)
+		}
+	}
+	for k := range have {
+		if !want[k] {
+			t.Errorf("Fields() has %s, which is not a field of Config", k)
 		}
 	}
 }
