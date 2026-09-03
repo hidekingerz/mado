@@ -311,8 +311,14 @@ func (m Model) renderSettingsRow(r settingsRow, keyW, w int, selected bool) stri
 	valueW := maxInt(w-lipgloss.Width(name), 0)
 	switch {
 	case selected && m.settings.editing == editText:
+		// At a pane narrower than the key column even the name does
+		// not fit: show as much of it as there is room for and drop
+		// the text, rather than let the row escape w.
+		if lipgloss.Width(name) >= w {
+			return clip(truncate(name, maxInt(w-1, 0)), w)
+		}
 		text := truncateLeft(termsafe.String(m.settings.input), maxInt(valueW-1, 0))
-		return name + text + m.styles.selection.Render(" ")
+		return clip(name+text+m.styles.selection.Render(" "), w)
 	case selected && m.settings.editing == editCapture:
 		return m.styles.selection.Render(padLine(truncate(name+value+"  press a key…", w), w))
 	case selected:
