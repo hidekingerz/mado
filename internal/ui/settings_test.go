@@ -9,6 +9,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/hidekingerz/mado/internal/config"
 )
 
 // settingsModel is testModel with a config file to save into.
@@ -134,6 +136,24 @@ func TestSettingsTypedKeysDoNotAct(t *testing.T) {
 	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 	if cmd == nil {
 		t.Fatal("ctrl+c should quit")
+	}
+	if _, ok := cmd().(tea.QuitMsg); !ok {
+		t.Error("ctrl+c should produce tea.Quit")
+	}
+}
+
+func TestSettingsCtrlCQuitsEvenWhenQuitIsRebound(t *testing.T) {
+	cfg := config.Default()
+	cfg.Theme.Style = "notty" // deterministic in tests, no terminal probing
+	cfg.Keys.Quit = []string{"Q"}
+	m := testModelWithConfig(t, cfg, map[string]string{"a.md": "# A"}, "a.md")
+	m = update(t, m, keyRune(','))
+	if !m.settings.open {
+		t.Fatal("',' should open the settings panel")
+	}
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	if cmd == nil {
+		t.Fatal("ctrl+c should quit even when quit is rebound off ctrl+c")
 	}
 	if _, ok := cmd().(tea.QuitMsg); !ok {
 		t.Error("ctrl+c should produce tea.Quit")

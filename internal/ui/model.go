@@ -279,8 +279,13 @@ func (m *Model) handleRemote(req *remote.Request) {
 type fileChangedMsg struct{}
 
 // waitForChange blocks until the watcher reports a change. A closed
-// channel (the watcher was shut down) ends the loop.
+// channel (the watcher was shut down) ends the loop. A nil watcher —
+// watching was never on, or the settings panel just turned it off —
+// has nothing to wait on, so the command itself is nil.
 func waitForChange(w *watch.Watcher) tea.Cmd {
+	if w == nil {
+		return nil
+	}
 	return func() tea.Msg {
 		if _, ok := <-w.Events(); !ok {
 			return nil
@@ -351,11 +356,32 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// quit tears down what mado owns before exiting: the search state,
+// the watcher, and the remote server. Used both by the ordinary quit
+// key and by ctrl+c inside the settings panel, which quits no matter
+// what quit is bound to.
+func (m *Model) quit() tea.Cmd {
+	m.cancelSearch()
+	if m.watcher != nil {
+		m.watcher.Close()
+	}
+	if m.srv != nil {
+		m.srv.Close()
+	}
+	return tea.Quit
+}
+
 func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	k := m.keys
 	// The settings panel owns the keyboard while open, so a key being
-	// captured can be anything — esc included. Only ctrl+c still quits.
-	if m.settings.open && msg.Type != tea.KeyCtrlC {
+	// captured can be anything — esc included. Only ctrl+c still quits,
+	// and it must quit whether or not ctrl+c is actually bound to the
+	// quit action: the panel's contract with the user does not depend
+	// on how quit happens to be configured.
+	if m.settings.open {
+		if msg.Type == tea.KeyCtrlC {
+			return m, m.quit()
+		}
 		return m.handleSettingsKey(msg)
 	}
 	// While the search prompt has the keyboard, typed characters are
@@ -366,14 +392,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	switch {
 	case key.Matches(msg, k.Quit):
-		m.cancelSearch()
-		if m.watcher != nil {
-			m.watcher.Close()
-		}
-		if m.srv != nil {
-			m.srv.Close()
-		}
-		return m, tea.Quit
+		return m, m.quit()
 	case key.Matches(msg, k.Search):
 		return m, m.openSearch(search.Names)
 	case key.Matches(msg, k.SearchContent):
