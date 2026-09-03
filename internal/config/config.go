@@ -22,6 +22,9 @@ type General struct {
 	// Watch re-reads open files and the sidebar tree automatically
 	// when they change on disk, instead of only on the reload key.
 	Watch bool `toml:"watch"`
+	// Mermaid draws ```mermaid blocks as box-character diagrams in the
+	// reader view. On by default.
+	Mermaid bool `toml:"mermaid"`
 }
 
 // Theme controls markdown rendering style and UI colors.
@@ -93,7 +96,8 @@ type Keys struct {
 func Default() Config {
 	return Config{
 		General: General{
-			Watch: false,
+			Watch:   false,
+			Mermaid: true,
 		},
 		Theme: Theme{
 			Style:       "auto",
@@ -171,15 +175,22 @@ func Load(path string) (Config, error) {
 	}
 
 	var user Config
-	if err := toml.Unmarshal(data, &user); err != nil {
+	md, err := toml.Decode(string(data), &user)
+	if err != nil {
 		return cfg, err
 	}
-	merge(&cfg, user)
+	merge(&cfg, user, md.IsDefined)
 	return cfg, nil
 }
 
-func merge(dst *Config, src Config) {
+// merge lays the keys the user set over the defaults. defined reports
+// whether a key was present in the file, which is what tells a bool
+// the user set to false apart from one they left out.
+func merge(dst *Config, src Config, defined func(key ...string) bool) {
 	dst.General.Watch = dst.General.Watch || src.General.Watch
+	if defined("general", "mermaid") {
+		dst.General.Mermaid = src.General.Mermaid
+	}
 
 	mergeStr(&dst.Theme.Style, src.Theme.Style)
 	mergeStr(&dst.Theme.DefaultMode, src.Theme.DefaultMode)

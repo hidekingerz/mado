@@ -11,6 +11,10 @@
 # --watch flag. Useful when another process (an editor, an agent) is
 # writing the files you are reading.
 watch = false
+# Draw ```mermaid code blocks as box-character diagrams in the reader
+# view (flowcharts, sequence diagrams, and more). A block that cannot be
+# drawn, or is wider than the pane, is shown as source instead.
+mermaid = true
 
 [theme]
 # Glamour markdown style: "auto", "dark", "light", "dracula", "notty",

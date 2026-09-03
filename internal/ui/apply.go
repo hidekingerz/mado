@@ -54,6 +54,10 @@ func (m *Model) applyConfig(next config.Config) tea.Cmd {
 				m.mode = modeSource
 			}
 		}
+	}
+	// Drawing mermaid blocks happens at render time, so switching it
+	// is a re-render, like a theme change.
+	if next.Theme != prev.Theme || next.General.Mermaid != prev.General.Mermaid {
 		for _, t := range m.tabs {
 			t.rendered = 0
 		}

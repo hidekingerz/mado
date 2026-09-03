@@ -751,10 +751,14 @@ func (m *Model) ensureRendered(t *tab) {
 			content = wordwrap.String(content, w-2)
 		}
 	} else {
+		src := t.raw
+		if m.cfg.General.Mermaid {
+			src = renderMermaidBlocks(src, w-2)
+		}
 		r, err := newRenderer(m.style, w)
 		if err == nil {
 			var out string
-			out, err = r.Render(t.raw)
+			out, err = r.Render(src)
 			if err == nil {
 				content = out
 			}
