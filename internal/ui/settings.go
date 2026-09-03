@@ -378,7 +378,7 @@ func (m Model) settingsHint() string {
 	case config.KindBool:
 		return "enter toggle │ esc close "
 	case config.KindEnum:
-		return "←/→ change │ esc close "
+		return "enter/→ next │ ← previous │ esc close "
 	case config.KindKeys:
 		return "enter capture │ backspace remove │ esc close "
 	default:
