@@ -243,6 +243,56 @@ func TestSettingsUnselectedLongKeyFitsThePane(t *testing.T) {
 	checkSettingsFitsPane(t, m)
 }
 
+// checkSettingsRowWidths asserts that every row renderSettings itself
+// produces (before the outer bordered box gets a chance to word-wrap
+// or silently clip an overlong single line) is no wider than the
+// content pane. This is what actually catches a row that overflows
+// but happens not to contain a wrappable second word: the outer box
+// can crop such a line to size without growing the frame, so
+// checkSettingsFitsPane alone would miss it.
+func checkSettingsRowWidths(t *testing.T, m Model) {
+	t.Helper()
+	w := m.contentInnerWidth()
+	body := m.renderSettings(w, m.contentInnerHeight())
+	for _, line := range strings.Split(body, "\n") {
+		if lw := lipgloss.Width(line); lw > w {
+			t.Errorf("settings row is %d wide, pane is %d: %q", lw, w, line)
+		}
+	}
+}
+
+func TestSettingsTextPromptFitsThePane(t *testing.T) {
+	// The text-prompt row must not escape the pane at a width narrower
+	// than the key column: name is never clipped, so this exercises
+	// the row's own clamping rather than the outer word-wrap.
+	m := settingsModel(t, map[string]string{"a.md": "# A"})
+	m = update(t, m, keyRune(','))
+	m = update(t, m, tea.WindowSizeMsg{Width: 40, Height: 12})
+	m = moveTo(t, m, "accent_color")
+	m = update(t, m, enter())
+	if m.settings.editing != editText {
+		t.Fatalf("editing = %v, want editText", m.settings.editing)
+	}
+	checkSettingsRowWidths(t, m)
+	checkSettingsFitsPane(t, m)
+	m = typeText(t, m, "12345678901234567890")
+	checkSettingsRowWidths(t, m)
+	checkSettingsFitsPane(t, m)
+}
+
+func TestSettingsCaptureFitsThePane(t *testing.T) {
+	m := settingsModel(t, map[string]string{"a.md": "# A"})
+	m = update(t, m, keyRune(','))
+	m = update(t, m, tea.WindowSizeMsg{Width: 40, Height: 12})
+	m = moveTo(t, m, "next_tab")
+	m = update(t, m, enter())
+	if m.settings.editing != editCapture {
+		t.Fatalf("editing = %v, want editCapture", m.settings.editing)
+	}
+	checkSettingsRowWidths(t, m)
+	checkSettingsFitsPane(t, m)
+}
+
 func TestSettingsRemoteOpenClosesThePanel(t *testing.T) {
 	m := settingsModel(t, map[string]string{"a.md": "# A", "b.md": "# B"})
 	m, srv := serveModel(t, m)
