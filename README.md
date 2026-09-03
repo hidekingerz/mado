@@ -10,6 +10,7 @@
 
 - **Markdown rendering** in the terminal via Glamour
 - **Reader / source modes** — toggle between a clean document view and syntax-highlighted raw markdown with one key
+- **Mermaid diagrams** — ```mermaid blocks are drawn as box-character diagrams in the reader view, no browser needed
 - **Inline image preview** — PNG/JPEG/GIF files render as half-block pixel art fitted to the pane
 - **Sidebar file tree** rooted at the current directory (lazy-loaded, collapsible; `a` toggles between markdown-only and all files). The tree follows the file being viewed: opening a file or switching tabs expands its directories and moves the cursor onto it
 - **Multiple open files** — each file opens in its own tab
@@ -71,6 +72,18 @@ In source view (and for non-markdown text files, which always render as
 source), `n` toggles line numbers, like vi's `:set nu`. Wrapped
 continuation rows get a blank gutter, so the numbers track the file's
 lines rather than the fold.
+
+### Mermaid diagrams
+
+In reader mode a fenced ```mermaid block is drawn as a diagram made of
+box characters, in place of the source — flowcharts, sequence
+diagrams, class, state and ER diagrams among others, courtesy of
+[mermaid-ascii](https://github.com/pgavlin/mermaid-ascii). Source mode
+shows the block as written. A diagram that cannot be drawn, or that is
+wider than the content pane, falls back to the source, so nothing is
+ever cut off or wrapped. Flowchart edge labels draw best in the
+`A -->|yes| B` form. Set `mermaid = false` under `[general]` to turn
+this off.
 
 ### Search
 
@@ -213,6 +226,7 @@ annotated reference.
 ```toml
 [general]
 watch = false              # true = auto-reload files when they change
+mermaid = true             # draw ```mermaid blocks in the reader view
 
 [theme]
 style = "dracula"          # glamour style name or path to a style JSON

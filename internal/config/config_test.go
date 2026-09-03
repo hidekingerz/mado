@@ -263,3 +263,31 @@ func TestSettingsKey(t *testing.T) {
 		t.Errorf("settings = %v, want [ctrl+s]", cfg.Keys.Settings)
 	}
 }
+
+func TestMermaidDefaultsOnAndCanBeTurnedOff(t *testing.T) {
+	if !Default().General.Mermaid {
+		t.Fatal("mermaid rendering should be on by default")
+	}
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte("[general]\nmermaid = false\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.General.Mermaid {
+		t.Error("mermaid = false in the file must win over the default")
+	}
+	// An absent key keeps the default, as every other key does.
+	if err := os.WriteFile(path, []byte("[general]\nwatch = true\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err = Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.General.Mermaid {
+		t.Error("an absent key keeps mermaid on")
+	}
+}

@@ -67,6 +67,8 @@ func Fields() []Field {
 	fs := []Field{
 		boolField("general", "watch", "Reload open files and the tree when they change on disk",
 			func(c *Config) *bool { return &c.General.Watch }),
+		boolField("general", "mermaid", "Draw mermaid code blocks as diagrams in the reader view",
+			func(c *Config) *bool { return &c.General.Mermaid }),
 		{
 			Table: "theme", Key: "style", Kind: KindEnum,
 			Desc:    "Glamour markdown style, or a path to a style JSON file",
