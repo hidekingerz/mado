@@ -1,5 +1,7 @@
 # mado
 
+[日本語](README.ja.md)
+
 **mado** (窓, "window") is a terminal reader for the Markdown in a
 directory — a project's docs, a notes folder — written in Go on
 [Bubble Tea](https://github.com/charmbracelet/bubbletea) and
