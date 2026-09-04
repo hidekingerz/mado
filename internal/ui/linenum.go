@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/reflow/wordwrap"
 )
 
 // numberLines prefixes each logical line of src with a right-aligned
@@ -22,7 +21,7 @@ func numberLines(src string, width int, gutter lipgloss.Style) string {
 	numW := len(strconv.Itoa(len(lines)))
 	textW := width - numW - 1
 	if textW < 1 {
-		return wordwrap.String(src, width)
+		return wrapText(src, width)
 	}
 	pad := strings.Repeat(" ", numW+1)
 	var b strings.Builder
@@ -30,7 +29,7 @@ func numberLines(src string, width int, gutter lipgloss.Style) string {
 		if i > 0 {
 			b.WriteByte('\n')
 		}
-		segs := strings.Split(wordwrap.String(line, textW), "\n")
+		segs := strings.Split(wrapText(line, textW), "\n")
 		b.WriteString(gutter.Render(fmt.Sprintf("%*d", numW, i+1)))
 		b.WriteByte(' ')
 		b.WriteString(segs[0])

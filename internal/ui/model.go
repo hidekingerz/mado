@@ -16,7 +16,6 @@ import (
 	"github.com/charmbracelet/glamour/ansi"
 	gstyles "github.com/charmbracelet/glamour/styles"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/reflow/wordwrap"
 	"github.com/muesli/termenv"
 
 	"github.com/hidekingerz/mado/internal/config"
@@ -748,24 +747,24 @@ func (m *Model) ensureRendered(t *tab) {
 		if m.showLineNums {
 			content = numberLines(content, w-2, m.styles.dimmed)
 		} else {
-			content = wordwrap.String(content, w-2)
+			content = wrapText(content, w-2)
 		}
 	} else {
 		src := t.raw
 		if m.cfg.General.Mermaid {
 			src = renderMermaidBlocks(src, w-2)
 		}
-		r, err := newRenderer(m.style, w)
+		r, err := newRenderer(m.style)
 		if err == nil {
 			var out string
 			out, err = r.Render(src)
 			if err == nil {
-				content = out
+				content = hardWrapLines(out, w)
 			}
 		}
 		if err != nil {
 			t.renderErr = err.Error()
-			content = wordwrap.String(t.raw, w-2)
+			content = wrapText(t.raw, w-2)
 		}
 	}
 	off := t.vp.YOffset
@@ -791,8 +790,13 @@ func resolveStyle(style string, darkBG bool) string {
 	return style
 }
 
-func newRenderer(style string, width int) (*glamour.TermRenderer, error) {
-	opts := []glamour.TermRendererOption{glamour.WithWordWrap(width - 2)}
+// newRenderer builds a glamour renderer that lays the document out
+// but does not fold it: glamour folds only at spaces, which leaves a
+// Japanese sentence on one row, so folding is done afterwards on its
+// output by hardWrapLines, which knows where East Asian text may
+// break. Word wrap 0 also stops glamour padding rows to the width.
+func newRenderer(style string) (*glamour.TermRenderer, error) {
+	opts := []glamour.TermRendererOption{glamour.WithWordWrap(0)}
 	switch {
 	case strings.HasSuffix(style, ".json"):
 		opts = append(opts, glamour.WithStylePath(style))

@@ -12,7 +12,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/muesli/reflow/wordwrap"
 
 	"github.com/hidekingerz/mado/internal/filetree"
 	"github.com/hidekingerz/mado/internal/search"
@@ -364,7 +363,7 @@ func sourceRow(raw string, line, width int, lineNums bool) int {
 	}
 	row := 0
 	for _, l := range lines[:line-1] {
-		row += strings.Count(wordwrap.String(l, textW), "\n") + 1
+		row += strings.Count(wrapText(l, textW), "\n") + 1
 	}
 	return row
 }
