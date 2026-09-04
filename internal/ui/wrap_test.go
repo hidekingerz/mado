@@ -105,3 +105,80 @@ func TestHardWrapLinesKeepsAnIndentSetBehindEscapes(t *testing.T) {
 		}
 	}
 }
+
+func rowsOf(s string) []string { return strings.Split(s, "\n") }
+
+func TestWrapTextFillsTheRowBeforeBreakingJapanese(t *testing.T) {
+	// After a space, a run of Japanese must not move to the next row
+	// whole: it can break between any two characters.
+	in := "- **設定パネル** — `,` を押すと、すべての設定をその場で編集できるパネルが開きます。変更は即座に反映されます"
+	rows := rowsOf(wrapText(in, 40))
+	if w := lipgloss.Width(rows[0]); w < 38 {
+		t.Errorf("first row should be filled to the width, got %d columns: %q", w, rows[0])
+	}
+	for i, r := range rows {
+		if w := lipgloss.Width(r); w > 40 {
+			t.Errorf("row %d is %d wide: %q", i, w, r)
+		}
+		if strings.HasPrefix(r, "。") || strings.HasPrefix(r, "、") {
+			t.Errorf("row %d starts with punctuation that belongs to the previous row: %q", i, r)
+		}
+	}
+	if squash(strings.Join(rows, "")) != squash(in) {
+		t.Errorf("text changed:\n%s", strings.Join(rows, "\n"))
+	}
+}
+
+func TestWrapTextKeepsLatinWordsWhole(t *testing.T) {
+	got := rowsOf(wrapText("the quick brown fox jumps", 10))
+	want := []string{"the quick", "brown fox", "jumps"}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Errorf("rows = %q, want %q", got, want)
+	}
+}
+
+func TestWrapTextSplitsAnOverlongWord(t *testing.T) {
+	got := rowsOf(wrapText("abcdefghijkl", 5))
+	want := []string{"abcde", "fghij", "kl"}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Errorf("rows = %q, want %q", got, want)
+	}
+}
+
+func TestWrapTextKeepsEscapeSequencesWhole(t *testing.T) {
+	in := "\x1b[31m" + jpSentence + "\x1b[0m"
+	out := wrapText(in, 20)
+	if !strings.Contains(out, "\x1b[31m") || !strings.Contains(out, "\x1b[0m") {
+		t.Errorf("escape sequences must survive: %q", out)
+	}
+	for i, r := range rowsOf(out) {
+		if w := lipgloss.Width(r); w > 20 {
+			t.Errorf("row %d is %d wide: %q", i, w, ansi.Strip(r))
+		}
+	}
+	if squash(out) != squash(in) {
+		t.Errorf("text changed:\n%s", ansi.Strip(out))
+	}
+}
+
+func TestWrapTextKeepsBlankLinesAndIndent(t *testing.T) {
+	got := wrapText("  indented line\n\nnext", 40)
+	if got != "  indented line\n\nnext" {
+		t.Errorf("short lines pass through unchanged, got %q", got)
+	}
+}
+
+func TestReaderModeFillsRowsBeforeBreakingJapanese(t *testing.T) {
+	md := "- **設定パネル** — `,` を押すと、すべての設定をその場で編集できるパネルが開きます。変更は即座に反映され、コメントはそのままに設定ファイルへ1キーずつ書き戻されます\n"
+	m := testModel(t, map[string]string{"a.md": md}, "a.md")
+	w := m.contentInnerWidth()
+	for _, r := range rowsOf(m.tabs[0].content) {
+		if strings.Contains(r, "設定パネル") {
+			if got := lipgloss.Width(r); got < w-2 {
+				t.Errorf("the row holding the bullet should be filled to about %d columns, got %d: %q", w, got, ansi.Strip(r))
+			}
+			return
+		}
+	}
+	t.Fatalf("bullet not rendered:\n%s", m.tabs[0].content)
+}

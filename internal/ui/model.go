@@ -754,13 +754,11 @@ func (m *Model) ensureRendered(t *tab) {
 		if m.cfg.General.Mermaid {
 			src = renderMermaidBlocks(src, w-2)
 		}
-		r, err := newRenderer(m.style, w)
+		r, err := newRenderer(m.style)
 		if err == nil {
 			var out string
 			out, err = r.Render(src)
 			if err == nil {
-				// glamour folds at spaces only; a run without any is
-				// folded here so the pane never cuts it off.
 				content = hardWrapLines(out, w)
 			}
 		}
@@ -792,8 +790,13 @@ func resolveStyle(style string, darkBG bool) string {
 	return style
 }
 
-func newRenderer(style string, width int) (*glamour.TermRenderer, error) {
-	opts := []glamour.TermRendererOption{glamour.WithWordWrap(width - 2)}
+// newRenderer builds a glamour renderer that lays the document out
+// but does not fold it: glamour folds only at spaces, which leaves a
+// Japanese sentence on one row, so folding is done afterwards on its
+// output by hardWrapLines, which knows where East Asian text may
+// break. Word wrap 0 also stops glamour padding rows to the width.
+func newRenderer(style string) (*glamour.TermRenderer, error) {
+	opts := []glamour.TermRendererOption{glamour.WithWordWrap(0)}
 	switch {
 	case strings.HasSuffix(style, ".json"):
 		opts = append(opts, glamour.WithStylePath(style))
