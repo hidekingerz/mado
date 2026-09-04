@@ -23,9 +23,56 @@ func wrapText(s string, width int) string {
 	lines := strings.Split(s, "\n")
 	out := make([]string, 0, len(lines))
 	for _, line := range lines {
-		out = append(out, foldLine(line, width, width, "")...)
+		out = append(out, foldLine(expandTabs(line), width, width, "")...)
 	}
 	return strings.Join(out, "\n")
+}
+
+// tabStop is how far a terminal draws a tab: to the next multiple of
+// eight columns.
+const tabStop = 8
+
+// expandTabs replaces each tab with the spaces a terminal would draw
+// for it, so the line's width can be counted. Escape sequences take
+// no columns.
+func expandTabs(line string) string {
+	if !strings.Contains(line, "\t") {
+		return line
+	}
+	var b strings.Builder
+	col := 0
+	rs := []rune(line)
+	for i := 0; i < len(rs); i++ {
+		r := rs[i]
+		switch {
+		case r == '\t':
+			n := tabStop - col%tabStop
+			b.WriteString(strings.Repeat(" ", n))
+			col += n
+		case r == 0x1b && i+1 < len(rs) && rs[i+1] == '[':
+			j := csiEnd(rs, i)
+			b.WriteString(string(rs[i:j]))
+			i = j - 1
+		default:
+			b.WriteRune(r)
+			col += runewidth.RuneWidth(r)
+		}
+	}
+	return b.String()
+}
+
+// csiEnd returns the index just past the CSI sequence starting at
+// rs[i], which is ESC '[' followed by parameter bytes and one final
+// byte in the range 0x40-0x7e.
+func csiEnd(rs []rune, i int) int {
+	j := i + 2
+	for j < len(rs) && (rs[j] < 0x40 || rs[j] > 0x7e) {
+		j++
+	}
+	if j < len(rs) {
+		j++
+	}
+	return j
 }
 
 // hardWrapLines folds every line of already laid-out text that is
@@ -41,14 +88,15 @@ func hardWrapLines(s string, width int) string {
 	lines := strings.Split(s, "\n")
 	out := make([]string, 0, len(lines))
 	for _, line := range lines {
+		line = expandTabs(line)
 		if lipgloss.Width(line) <= width {
 			out = append(out, line)
 			continue
 		}
 		visible := ansi.Strip(line)
 		indent := len(visible) - len(strings.TrimLeft(visible, " "))
-		if indent >= width {
-			indent = 0
+		if width-indent < 4 {
+			indent = 0 // too narrow to keep a margin and still show text
 		}
 		out = append(out, foldLine(line, width, width-indent, strings.Repeat(" ", indent))...)
 	}
@@ -94,11 +142,17 @@ func foldLine(line string, first, rest int, pad string) []string {
 			used += len(pending)
 			pending = ""
 		}
-		// A word wider than a whole row is cut where the row ends.
-		for t.width > limit {
+		// What does not fit in the rest of the row — a word wider than
+		// a row, or one that follows a row's leading spaces — is cut
+		// where the row ends rather than leaving the row blank.
+		for used+t.width > limit {
 			head, tail, w := splitAt(t.text, limit-used)
 			if head == "" {
-				break
+				if used == 0 {
+					break // narrower than one character: let it overflow
+				}
+				flush()
+				continue
 			}
 			row.WriteString(head)
 			used += w
@@ -116,7 +170,8 @@ func foldLine(line string, first, rest int, pad string) []string {
 		}
 		place(t)
 	}
-	if pending != "" {
+	// Trailing spaces are invisible; keep them only where they fit.
+	if pending != "" && used+len(pending) <= limit {
 		row.WriteString(pending)
 	}
 	rows = append(rows, row.String())
@@ -127,10 +182,15 @@ func foldLine(line string, first, rest int, pad string) []string {
 // returning the head, the tail and the head's width.
 func splitAt(text string, cols int) (string, string, int) {
 	w := 0
-	for i, r := range text {
-		rw := runewidth.RuneWidth(r)
+	rs := []rune(text)
+	for i := 0; i < len(rs); i++ {
+		if rs[i] == 0x1b && i+1 < len(rs) && rs[i+1] == '[' {
+			i = csiEnd(rs, i) - 1
+			continue
+		}
+		rw := runewidth.RuneWidth(rs[i])
 		if w+rw > cols {
-			return text[:i], text[i:], w
+			return string(rs[:i]), string(rs[i:]), w
 		}
 		w += rw
 	}
@@ -158,15 +218,15 @@ func tokenize(line string) []token {
 		r := rs[i]
 		switch {
 		case r == 0x1b && i+1 < len(rs) && rs[i+1] == '[':
-			endWord()
-			j := i + 2
-			for j < len(rs) && (rs[j] < 0x40 || rs[j] > 0x7e) {
-				j++
+			// A sequence inside a word — highlighting colors part of
+			// it — stays in the word rather than becoming a place to
+			// break.
+			j := csiEnd(rs, i)
+			if word.Len() > 0 {
+				word.WriteString(string(rs[i:j]))
+			} else {
+				toks = append(toks, token{text: string(rs[i:j])})
 			}
-			if j < len(rs) {
-				j++
-			}
-			toks = append(toks, token{text: string(rs[i:j])})
 			i = j - 1
 		case r == ' ' || r == '\t':
 			endWord()

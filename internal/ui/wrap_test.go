@@ -182,3 +182,51 @@ func TestReaderModeFillsRowsBeforeBreakingJapanese(t *testing.T) {
 	}
 	t.Fatalf("bullet not rendered:\n%s", m.tabs[0].content)
 }
+
+func TestWrapTextDropsTrailingSpacesThatDoNotFit(t *testing.T) {
+	// glamour pads table cells with spaces; invisible padding must not
+	// push a row past the pane.
+	in := "abc" + strings.Repeat(" ", 20)
+	got := hardWrapLines(in, 10)
+	if strings.Count(got, "\n") != 0 || lipgloss.Width(got) > 10 {
+		t.Errorf("padding should be dropped, not folded: %q", got)
+	}
+	if !strings.HasPrefix(got, "abc") {
+		t.Errorf("text lost: %q", got)
+	}
+}
+
+func TestWrapTextExpandsTabsToTerminalColumns(t *testing.T) {
+	// A terminal draws a tab as spaces up to the next multiple of 8,
+	// so the width of a tabbed line is counted that way too.
+	got := wrapText("\tif x {", 40)
+	if got != "        if x {" {
+		t.Errorf("leading tab = %q", got)
+	}
+	got = wrapText("ab\tc", 40)
+	if got != "ab      c" {
+		t.Errorf("mid-line tab = %q", got)
+	}
+	// 8 + 34 wide: must fold, since the terminal would show 42 columns.
+	rows := rowsOf(wrapText("\t"+strings.Repeat("x", 34), 40))
+	if len(rows) != 2 {
+		t.Errorf("a tabbed line wider than the pane must fold, got %q", rows)
+	}
+}
+
+func TestWrapTextKeepsAStyledWordWhole(t *testing.T) {
+	// Highlighting puts escape sequences inside a word; they must not
+	// become a place to break.
+	rows := rowsOf(wrapText("xx abc\x1b[31mdef\x1b[0m", 7))
+	if len(rows) != 2 || ansi.Strip(rows[0]) != "xx" || ansi.Strip(rows[1]) != "abcdef" {
+		t.Errorf("rows = %q", rows)
+	}
+	rows = rowsOf(wrapText("\x1b[31mabcdefghijkl\x1b[0m", 5))
+	var vis []string
+	for _, r := range rows {
+		vis = append(vis, ansi.Strip(r))
+	}
+	if strings.Join(vis, "|") != "abcde|fghij|kl" {
+		t.Errorf("an overlong styled word splits by visible columns, got %q", vis)
+	}
+}
