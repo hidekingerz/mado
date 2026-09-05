@@ -100,7 +100,11 @@ diagrams, class, state and ER diagrams among others, courtesy of
 shows the block as written. A diagram that cannot be drawn, or that is
 wider than the content pane, falls back to the source, so nothing is
 ever cut off or wrapped. Flowchart edge labels draw best in the
-`A -->|yes| B` form. Only a fence written as ```` ```mermaid ```` at the
+`A -->|yes| B` form. A flowchart whose text is not all ASCII — a
+Japanese node or edge label — is shown as source for now: the
+flowchart renderer places text byte by byte and would garble it.
+Sequence and other diagram types draw such text fine. Only a fence
+written as ```` ```mermaid ```` at the
 start of a line is recognised — not an indented one inside a list, a
 `~~~` fence, or one with extra words after the language — and files
 with CRLF line endings are shown as source. Set `mermaid = false`

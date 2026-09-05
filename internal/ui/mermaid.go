@@ -76,6 +76,12 @@ func closingFence(lines []string, from int) int {
 // drawMermaid draws src, reporting false when it cannot be drawn or
 // does not fit in maxWidth columns.
 func drawMermaid(src string, maxWidth int) (string, bool) {
+	if isFlowchart(src) && !isASCII(src) {
+		// The flowchart renderer places text byte by byte, so a
+		// multi-byte character comes out as mojibake. Until it
+		// handles runes, such a diagram reads better as source.
+		return "", false
+	}
 	drawn, err := render.Render(src, diagram.DefaultConfig())
 	if err != nil {
 		return "", false
@@ -90,4 +96,26 @@ func drawMermaid(src string, maxWidth int) (string, bool) {
 		}
 	}
 	return drawn, true
+}
+
+// isFlowchart reports whether src is a flowchart or graph, the
+// diagram types drawn by the byte-wise renderer.
+func isFlowchart(src string) bool {
+	for _, l := range strings.Split(src, "\n") {
+		l = strings.TrimSpace(l)
+		if l == "" || strings.HasPrefix(l, "%%") {
+			continue
+		}
+		return strings.HasPrefix(l, "flowchart") || strings.HasPrefix(l, "graph")
+	}
+	return false
+}
+
+func isASCII(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] >= 0x80 {
+			return false
+		}
+	}
+	return true
 }
