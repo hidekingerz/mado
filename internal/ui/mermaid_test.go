@@ -157,3 +157,27 @@ func TestMermaidRendererCannotWriteToTheTerminal(t *testing.T) {
 		t.Error("logrus output should be discarded")
 	}
 }
+
+func TestFlowchartWithNonASCIITextStaysSource(t *testing.T) {
+	// The flowchart renderer places text byte by byte, so anything
+	// outside ASCII comes out as mojibake; such a block is shown as
+	// source until the library handles it.
+	for _, src := range []string{
+		"```mermaid\nflowchart TD\n    A[開始] --> B[終了]\n```\n",
+		"```mermaid\nflowchart TD\n    A[Start] -->|はい| B[End]\n```\n",
+		"```mermaid\ngraph LR\n    A --> B[Café]\n```\n",
+		"```mermaid\nflowchart TD\n    subgraph 内側\n      A --> B\n    end\n```\n",
+	} {
+		if got := renderMermaidBlocks(src, 200); got != src {
+			t.Errorf("non-ASCII flowchart should stay as source:\n%s", got)
+		}
+	}
+}
+
+func TestSequenceWithNonASCIITextStillDraws(t *testing.T) {
+	src := "```mermaid\nsequenceDiagram\n    利用者->>mado: 起動\n    mado-->>利用者: 描画\n```\n"
+	got := renderMermaidBlocks(src, 200)
+	if !strings.Contains(got, "```text") || !strings.Contains(got, "利用者") || !strings.Contains(got, "起動") {
+		t.Errorf("the sequence renderer handles wide text and should draw:\n%s", got)
+	}
+}
