@@ -94,17 +94,16 @@ lines rather than the fold.
 ### Mermaid diagrams
 
 In reader mode a fenced ```mermaid block is drawn as a diagram made of
-box characters, in place of the source — flowcharts, sequence
-diagrams, class, state and ER diagrams among others, courtesy of
-[mermaid-ascii](https://github.com/pgavlin/mermaid-ascii). Source mode
-shows the block as written. A diagram that cannot be drawn, or that is
-wider than the content pane, falls back to the source, so nothing is
-ever cut off or wrapped. Flowchart edge labels draw best in the
-`A -->|yes| B` form. A flowchart whose text is not all ASCII — a
-Japanese node or edge label — is shown as source for now: the
-flowchart renderer places text byte by byte and would garble it.
-Sequence and other diagram types draw such text fine. Only a fence
-written as ```` ```mermaid ```` at the
+box characters, in place of the source — flowcharts (with subgraphs),
+sequence diagrams and ER diagrams, courtesy of
+[mermaid-ascii](https://github.com/AlexanderGrooff/mermaid-ascii).
+Japanese and other wide text is fine in node and edge labels. Source
+mode shows the block as written. A diagram that cannot be drawn — a
+class or state diagram, say — or that is wider than the content pane,
+falls back to the source, so nothing is ever cut off or wrapped.
+Flowchart edge labels draw best in the `A -->|yes| B` form, and a
+decision node `B{…}` is drawn as a plain box. Only a fence written as
+```` ```mermaid ```` at the
 start of a line is recognised — not an indented one inside a list, a
 `~~~` fence, or one with extra words after the language — and files
 with CRLF line endings are shown as source. Set `mermaid = false`

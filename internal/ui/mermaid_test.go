@@ -158,18 +158,25 @@ func TestMermaidRendererCannotWriteToTheTerminal(t *testing.T) {
 	}
 }
 
-func TestFlowchartWithNonASCIITextStaysSource(t *testing.T) {
-	// The flowchart renderer places text byte by byte, so anything
-	// outside ASCII comes out as mojibake; such a block is shown as
-	// source until the library handles it.
-	for _, src := range []string{
-		"```mermaid\nflowchart TD\n    A[開始] --> B[終了]\n```\n",
-		"```mermaid\nflowchart TD\n    A[Start] -->|はい| B[End]\n```\n",
-		"```mermaid\ngraph LR\n    A --> B[Café]\n```\n",
-		"```mermaid\nflowchart TD\n    subgraph 内側\n      A --> B\n    end\n```\n",
-	} {
-		if got := renderMermaidBlocks(src, 200); got != src {
-			t.Errorf("non-ASCII flowchart should stay as source:\n%s", got)
+func TestFlowchartWithJapaneseTextDraws(t *testing.T) {
+	src := "```mermaid\nflowchart TD\n    A[開始] -->|はい| B[終了]\n```\n"
+	got := renderMermaidBlocks(src, 200)
+	if !strings.Contains(got, "```text") {
+		t.Fatalf("a flowchart with Japanese text should draw:\n%s", got)
+	}
+	for _, want := range []string{"開始", "はい", "終了"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("drawing should contain %q intact:\n%s", want, got)
+		}
+	}
+	// Every row of the drawing is the same width: wide characters
+	// were measured as two columns, not one.
+	rows := strings.Split(strings.SplitN(strings.SplitN(got, "```text\n", 2)[1], "\n```", 2)[0], "\n")
+	w := lipgloss.Width(rows[0])
+	for i, r := range rows {
+		if lipgloss.Width(r) != w {
+			t.Errorf("row %d is %d wide, row 0 is %d: box drawing misaligned:\n%s", i, lipgloss.Width(r), w, got)
+			break
 		}
 	}
 }
