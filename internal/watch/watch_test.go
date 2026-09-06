@@ -10,9 +10,12 @@ import (
 // debounce kept short so tests stay fast; waits are generous so that a
 // slow CI machine does not turn timing into flakiness.
 const (
-	testDebounce = 20 * time.Millisecond
+	// testDebounce is long enough that a burst of writes lands inside
+	// one window even on a slow CI runner under the race detector,
+	// where 20 writes have been seen to take more than 20 ms.
+	testDebounce = 100 * time.Millisecond
 	waitFor      = 3 * time.Second
-	quietFor     = 300 * time.Millisecond
+	quietFor     = 500 * time.Millisecond
 )
 
 func newTestWatcher(t *testing.T, dirs ...string) *Watcher {
