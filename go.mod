@@ -3,7 +3,7 @@ module github.com/hidekingerz/mado
 go 1.25.0
 
 require (
-	github.com/AlexanderGrooff/mermaid-ascii v0.0.0-20260807155423-b1b35f67d6a5
+	github.com/AlexanderGrooff/mermaid-ascii v0.0.0-20260905214118-8baafe6de5f0
 	github.com/BurntSushi/toml v1.6.0
 	github.com/alecthomas/chroma/v2 v2.20.0
 	github.com/charmbracelet/bubbles v1.0.0
@@ -49,5 +49,3 @@ require (
 	golang.org/x/term v0.41.0 // indirect
 	golang.org/x/text v0.30.0 // indirect
 )
-
-replace github.com/AlexanderGrooff/mermaid-ascii => github.com/hidekingerz/mermaid-ascii v0.0.0-20260905061125-fc194f1af54c
