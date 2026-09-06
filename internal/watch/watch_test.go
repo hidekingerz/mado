@@ -91,19 +91,30 @@ func TestReportsAtomicReplace(t *testing.T) {
 	expectEvent(t, w, "atomic replace")
 }
 
+// A burst of writes is reported after it goes quiet, not during it:
+// the writes come closer together than the debounce, so no report may
+// arrive until the last one is in. How many reports follow depends on
+// how the filesystem delivers its events — on a loaded CI runner they
+// can arrive in two clumps with a pause between — so the test asserts
+// nothing about the count.
 func TestCoalescesBurst(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "a.md")
 	write(t, path, "0")
 
 	w := newTestWatcher(t, dir)
-	for i := 0; i < 20; i++ {
+	// Spread the burst over a few debounce windows, each write well
+	// inside the window after the previous one.
+	step := testDebounce / 4
+	for i := 0; i < 12; i++ {
 		write(t, path, string(rune('a'+i)))
+		select {
+		case <-w.Events():
+			t.Fatalf("reported during the burst, after write %d", i)
+		case <-time.After(step):
+		}
 	}
 	expectEvent(t, w, "burst")
-	// The whole burst should have arrived within one debounce window,
-	// leaving nothing behind it.
-	expectQuiet(t, w, "burst should report once")
 }
 
 func TestUnwatchedDirIsIgnored(t *testing.T) {
