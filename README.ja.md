@@ -28,6 +28,7 @@
 
 - **自動再読み込み** — `--watch` を付けると、開いているファイルがディスク上で変更されるたびに再レンダリングします。mado をペインに常駐させてライブビューとして使えます
 - **リモートコマンド** — `mado --remote open FILE` は、新しいインスタンスを起動する代わりに、すでに画面上にあるインスタンスにタブを追加します
+- **herdr プラグイン** — [herdr-plugin-mado](https://github.com/hidekingerz/herdr-plugin-mado) は、エージェントが書いている Markdown を、その隣の mado ペインで開きます
 - **内容は表示されるだけで、実行されません** — 制御文字はターミナルにそのまま渡されず、キャレット記法で表示されます。閲覧中のファイルがクリップボードやウィンドウタイトル、カーソルを乗っ取ることはありません
 
 ### 自分好みにする
@@ -125,6 +126,24 @@ MADO_SOCKET=/tmp/mado-notes.sock mado --remote open notes/today.md   # …ファ
 ```
 
 このソケットディレクトリは信頼境界です。コマンドが開くものは何であれ、あなたの権限で開かれます。mado はこのディレクトリを非公開として作成し、すでに存在する場合は、それが自分の所有であり他のユーザーが書き込めないことを確認します。`XDG_RUNTIME_DIR` が未設定の共有マシンでは、ディレクトリ名が予測可能なため、誰かが先にディレクトリを作ってソケットを仕込む可能性があるからです。チェックを通らないディレクトリの場合、そのインスタンスではリモートコマンドがオフになり、理由が標準エラーに1行出力されます。それ以外の mado の機能はすべて通常どおり動作します。
+
+### herdr との連携
+
+[herdr](https://herdr.dev) はコーディングエージェントをペインで動かすランタイムです。[herdr-plugin-mado](https://github.com/hidekingerz/herdr-plugin-mado) は、その隣に mado を置く herdr プラグイン集で、`--watch` と `--remote open` の上に作られています。エージェントが書くプラン、レポート、ログは、そのままだとページャで読むか、ペインをさかのぼって読むことになります。これらのプラグインはそれを mado で開き、エージェントの隣に分割して置き、書き換えに合わせて追従させます。
+
+| プラグイン | 動作 |
+| ---------- | ---- |
+| `docs-peek` | キーを押すと、フォーカス中のペインの `docs/`（なければツリー全体）を右側の mado で開きます |
+| `agent-report-viewer` | エージェントの実行が終わると、生成された Markdown（作業ツリー内の未コミットの `*.md`、新しい順）をワークスペースごとに1つのペインにタブとして開きます |
+| `loop-dash` | キーを押すと、`loop/` エージェントループの `MEMORY.md`、`VISION.md`、`ARCHITECTURE.md`、`RULES.md` を追従するペインで開きます |
+
+```sh
+herdr plugin install hidekingerz/herdr-plugin-mado/docs-peek
+herdr plugin install hidekingerz/herdr-plugin-mado/agent-report-viewer
+herdr plugin install hidekingerz/herdr-plugin-mado/loop-dash
+```
+
+herdr 0.8.0 以降と、`PATH` 上の mado v1.2.0 以降が必要です。対応環境は Linux と macOS です。キーの割り当てや各プラグインの詳細は、そのリポジトリの README を参照してください。
 
 ### 設定
 
