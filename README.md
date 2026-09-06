@@ -32,6 +32,7 @@ to help you find your way around.
 
 - **Auto-reload** — `--watch` re-renders open files as they change on disk, so mado can sit in a pane as a live view
 - **Remote commands** — `mado --remote open FILE` adds a tab to the instance already on screen instead of starting a second one
+- **herdr plugins** — [herdr-plugin-mado](https://github.com/hidekingerz/herdr-plugin-mado) opens the markdown an agent is writing in a mado pane beside it
 - **Content is shown, never obeyed** — control characters render in caret notation rather than being passed to the terminal, so a file being viewed can't hijack your clipboard, window title, or cursor
 
 ### Making it yours
@@ -195,6 +196,32 @@ predictable enough for someone else to create first and plant a socket
 in. A directory that does not pass turns remote commands off for that
 instance, with a line on stderr saying why; everything else about mado
 still works.
+
+### With herdr
+
+[herdr](https://herdr.dev) runs coding agents in panes, and
+[herdr-plugin-mado](https://github.com/hidekingerz/herdr-plugin-mado)
+is a set of herdr plugins that put mado beside them, built on `--watch`
+and `--remote open`. An agent writing a plan, a report or a log leaves
+you reading markdown in a pager or scrolling back through its pane;
+these open it in mado instead, in a split next to the agent, and keep
+it in step as the agent rewrites it.
+
+| Plugin | What it does |
+| ------ | ------------ |
+| `docs-peek` | On a key, opens the focused pane's `docs/` (or its whole tree) in mado to the right |
+| `agent-report-viewer` | When an agent run finishes, opens the markdown it produced — the uncommitted `*.md` files in its work tree, newest first — as tabs in one pane per workspace |
+| `loop-dash` | On a key, opens a `loop/` agent loop's `MEMORY.md`, `VISION.md`, `ARCHITECTURE.md` and `RULES.md` in a pane that follows them |
+
+```sh
+herdr plugin install hidekingerz/herdr-plugin-mado/docs-peek
+herdr plugin install hidekingerz/herdr-plugin-mado/agent-report-viewer
+herdr plugin install hidekingerz/herdr-plugin-mado/loop-dash
+```
+
+They need herdr 0.8.0 or newer and mado v1.2.0 or newer on your
+`PATH`, on Linux or macOS. Keys, requirements and the details of each
+plugin are in that repository's README.
 
 ### Settings
 
