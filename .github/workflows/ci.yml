@@ -44,3 +44,11 @@ jobs:
 
       - name: Test
         run: go test -race ./...
+
+      # Fails only on vulnerabilities reachable from mado's own code, not
+      # on every advisory in the module graph. A failure here can show up
+      # on a pull request that did not touch go.mod: that means a new
+      # advisory landed for a dependency we already had, and the fix is
+      # a dependency bump, not a revert.
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
