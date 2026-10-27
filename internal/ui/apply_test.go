@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 func TestApplyConfigThemeRebuildsStylesAndRerenders(t *testing.T) {
@@ -62,11 +62,11 @@ func TestApplyConfigKeysTakeEffectImmediately(t *testing.T) {
 	next := m.cfg
 	next.Keys.NextTab = []string{"ctrl+n"}
 	m.applyConfig(next)
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyTab})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyTab})
 	if m.active != 1 {
 		t.Error("tab should no longer switch tabs")
 	}
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyCtrlN})
+	m = update(t, m, tea.KeyPressMsg{Code: 'n', Mod: tea.ModCtrl})
 	if m.active != 0 {
 		t.Error("ctrl+n should switch tabs now")
 	}
@@ -74,7 +74,7 @@ func TestApplyConfigKeysTakeEffectImmediately(t *testing.T) {
 
 func TestApplyConfigSidebarReloadsTheTree(t *testing.T) {
 	m := testModel(t, map[string]string{"a.md": "# A", "notes.txt": "hi"})
-	if strings.Contains(m.View(), "notes.txt") {
+	if strings.Contains(m.render(), "notes.txt") {
 		t.Fatal("txt files are hidden by default")
 	}
 	next := m.cfg
@@ -84,7 +84,7 @@ func TestApplyConfigSidebarReloadsTheTree(t *testing.T) {
 	if !m.treeOpts.ShowAllFiles {
 		t.Error("treeOpts should follow the config")
 	}
-	if !strings.Contains(m.View(), "notes.txt") {
+	if !strings.Contains(m.render(), "notes.txt") {
 		t.Error("the tree should reload with all files")
 	}
 	if m.sidebarWidth() != 40 {
@@ -94,17 +94,17 @@ func TestApplyConfigSidebarReloadsTheTree(t *testing.T) {
 
 func TestApplyConfigSidebarWidthDoesNotRevertRuntimeShowAllFiles(t *testing.T) {
 	m := testModel(t, map[string]string{"a.md": "# A", "notes.txt": "hi"})
-	if strings.Contains(m.View(), "notes.txt") {
+	if strings.Contains(m.render(), "notes.txt") {
 		t.Fatal("txt files are hidden by default")
 	}
 	m = update(t, m, keyRune('a')) // toggle_all_files: runtime-only, does not touch m.cfg
-	if !strings.Contains(m.View(), "notes.txt") {
+	if !strings.Contains(m.render(), "notes.txt") {
 		t.Fatal("'a' should show notes.txt")
 	}
 	next := m.cfg
 	next.Sidebar.Width = 40 // the only sidebar change is Width
 	m.applyConfig(next)
-	if !strings.Contains(m.View(), "notes.txt") {
+	if !strings.Contains(m.render(), "notes.txt") {
 		t.Error("a config change to an unrelated sidebar field should not revert the 'a' toggle")
 	}
 	if m.sidebarWidth() != 40 {
@@ -146,7 +146,7 @@ func TestFileChangedAfterWatcherStopsDoesNotPanic(t *testing.T) {
 		cmd()
 		t.Error("a fileChangedMsg with no watcher should not hand back a command")
 	}
-	if !strings.Contains(m.View(), "a.md") {
+	if !strings.Contains(m.render(), "a.md") {
 		t.Error("the reload should still happen: the tree should still render")
 	}
 }
@@ -167,7 +167,7 @@ func TestApplyConfigStartsAndStopsTheWatcher(t *testing.T) {
 	if cmd == nil {
 		t.Error("starting the watcher should hand back a command that waits on it")
 	}
-	if !strings.Contains(m.View(), "[WATCH]") {
+	if !strings.Contains(m.render(), "[WATCH]") {
 		t.Error("status bar should show watching")
 	}
 	next.General.Watch = false
@@ -177,7 +177,7 @@ func TestApplyConfigStartsAndStopsTheWatcher(t *testing.T) {
 	if m.watcher != nil {
 		t.Error("watch off should close the watcher")
 	}
-	if strings.Contains(m.View(), "[WATCH]") {
+	if strings.Contains(m.render(), "[WATCH]") {
 		t.Error("status bar should stop showing watching")
 	}
 }

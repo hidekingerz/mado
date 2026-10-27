@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"runtime/debug"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/hidekingerz/mado/internal/config"
 	"github.com/hidekingerz/mado/internal/remote"
@@ -102,10 +102,7 @@ func main() {
 		m = m.Serve(srv)
 	}
 
-	p := tea.NewProgram(m,
-		tea.WithAltScreen(),
-		tea.WithMouseCellMotion(),
-	)
+	p := tea.NewProgram(m)
 	if _, err := p.Run(); err != nil {
 		fatal(err)
 	}

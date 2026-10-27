@@ -9,14 +9,14 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/glamour"
-	"github.com/charmbracelet/glamour/ansi"
-	gstyles "github.com/charmbracelet/glamour/styles"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/glamour/v2"
+	"charm.land/glamour/v2/ansi"
+	gstyles "charm.land/glamour/v2/styles"
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/colorprofile"
 
 	"github.com/hidekingerz/mado/internal/config"
 	"github.com/hidekingerz/mado/internal/filetree"
@@ -76,9 +76,9 @@ type tab struct {
 // setContent stores file data on the tab. Images become half-block
 // art tabs; other binary data is replaced with a placeholder so raw
 // control bytes never reach the terminal.
-func (t *tab) setContent(data []byte, profile termenv.Profile) {
+func (t *tab) setContent(data []byte, profile colorprofile.Profile) {
 	t.img = nil
-	if hasImageExt(t.path) && (profile == termenv.TrueColor || profile == termenv.ANSI256) {
+	if hasImageExt(t.path) && (profile == colorprofile.TrueColor || profile == colorprofile.ANSI256) {
 		if img, err := decodeImage(data); err == nil {
 			t.img = img
 			t.binary = false
@@ -120,13 +120,13 @@ type Model struct {
 	sidebar      bool
 	focus        focusArea
 	mode         viewMode
-	style        string          // resolved glamour style ("auto" already decided)
-	sourceStyle  string          // chroma style for source mode; "" = no highlighting
-	formatter    string          // chroma formatter; pinned at startup, "" = no color
-	profile      termenv.Profile // terminal color capability, pinned at startup
-	darkBG       bool            // terminal background, pinned at startup like profile
-	configPath   string          // where the settings panel saves; "" = nowhere
-	showLineNums bool            // vi :set nu for source-rendered content
+	style        string               // resolved glamour style ("auto" already decided)
+	sourceStyle  string               // chroma style for source mode; "" = no highlighting
+	formatter    string               // chroma formatter; pinned at startup, "" = no color
+	profile      colorprofile.Profile // terminal color capability, pinned at startup
+	darkBG       bool                 // terminal background, pinned at startup like profile
+	configPath   string               // where the settings panel saves; "" = nowhere
+	showLineNums bool                 // vi :set nu for source-rendered content
 	showHelp     bool
 	statusMsg    string
 
@@ -179,7 +179,7 @@ func New(cfg config.Config, rootDir string, initialFiles []string) (Model, error
 	if cfg.Theme.DefaultMode == "source" {
 		mode = modeSource
 	}
-	darkBG := termenv.HasDarkBackground()
+	darkBG := lipgloss.HasDarkBackground(os.Stdin, os.Stdout)
 	style := resolveStyle(cfg.Theme.Style, darkBG)
 	m := Model{
 		cfg:         cfg,
@@ -192,7 +192,7 @@ func New(cfg config.Config, rootDir string, initialFiles []string) (Model, error
 		style:       style,
 		sourceStyle: chromaStyleName(style, cfg.Theme.SourceStyle, darkBG),
 		formatter:   chromaFormatterName(),
-		profile:     termenv.ColorProfile(),
+		profile:     colorprofile.Detect(os.Stdout, os.Environ()),
 		darkBG:      darkBG,
 		styles:      newStyles(cfg.Theme),
 	}
@@ -338,8 +338,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 		m.layoutTabs()
 		return m, nil
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleKey(msg)
+	case tea.PasteMsg:
+		return m.handlePaste(msg.Content)
 	case tea.MouseMsg:
 		return m.handleMouse(msg)
 	case fileChangedMsg:
@@ -370,7 +372,7 @@ func (m *Model) quit() tea.Cmd {
 	return tea.Quit
 }
 
-func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	k := m.keys
 	// The settings panel owns the keyboard while open, so a key being
 	// captured can be anything — esc included. Only ctrl+c still quits,
@@ -378,7 +380,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// quit action: the panel's contract with the user does not depend
 	// on how quit happens to be configured.
 	if m.settings.open {
-		if msg.Type == tea.KeyCtrlC {
+		if msg.String() == "ctrl+c" {
 			return m, m.quit()
 		}
 		return m.handleSettingsKey(msg)
@@ -386,7 +388,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// While the search prompt has the keyboard, typed characters are
 	// the query — "q" included. Only a quit key that cannot be typed
 	// (ctrl+c) still quits.
-	if m.search.open && (msg.Type == tea.KeyRunes || msg.Type == tea.KeySpace || !key.Matches(msg, k.Quit)) {
+	if m.search.open && (msg.Text != "" || !key.Matches(msg, k.Quit)) {
 		return m.handleSearchKey(msg)
 	}
 	switch {
@@ -492,25 +494,24 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	if m.search.open {
 		return m.handleSearchMouse(msg)
 	}
-	inSidebar := m.sidebar && msg.X < m.sidebarWidth()
+	at := msg.Mouse()
+	inSidebar := m.sidebar && at.X < m.sidebarWidth()
 
-	switch msg.Button {
-	case tea.MouseButtonWheelUp:
-		if inSidebar {
-			m.scrollTree(-wheelStep)
-		} else if t := m.activeTab(); t != nil {
-			t.vp.ScrollUp(wheelStep)
+	switch msg := msg.(type) {
+	case tea.MouseWheelMsg:
+		if step, ok := wheelStepOf(msg); ok {
+			if inSidebar {
+				m.scrollTree(step)
+			} else if t := m.activeTab(); t != nil {
+				if step < 0 {
+					t.vp.ScrollUp(-step)
+				} else {
+					t.vp.ScrollDown(step)
+				}
+			}
 		}
-		return m, nil
-	case tea.MouseButtonWheelDown:
-		if inSidebar {
-			m.scrollTree(wheelStep)
-		} else if t := m.activeTab(); t != nil {
-			t.vp.ScrollDown(wheelStep)
-		}
-		return m, nil
-	case tea.MouseButtonLeft:
-		if msg.Action != tea.MouseActionPress {
+	case tea.MouseClickMsg:
+		if msg.Button != tea.MouseLeft {
 			return m, nil
 		}
 		if m.showHelp {
@@ -518,15 +519,28 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		switch {
-		case msg.Y < tabBarHeight:
-			m.clickTabBar(msg.X)
+		case at.Y < tabBarHeight:
+			m.clickTabBar(at.X)
 		case inSidebar:
-			m.clickSidebar(msg.X, msg.Y)
+			m.clickSidebar(at.X, at.Y)
 		default:
 			m.focus = focusContent
 		}
 	}
 	return m, nil
+}
+
+// wheelStepOf turns a wheel message into the rows to scroll by: up is
+// negative, down positive. Sideways wheel motion is not something mado
+// scrolls, so it reports false.
+func wheelStepOf(msg tea.MouseWheelMsg) (int, bool) {
+	switch msg.Button {
+	case tea.MouseWheelUp:
+		return -wheelStep, true
+	case tea.MouseWheelDown:
+		return wheelStep, true
+	}
+	return 0, false
 }
 
 // clickTabBar activates or closes the tab under column x.
@@ -610,7 +624,7 @@ func (m *Model) openFile(path string) error {
 		title: termsafe.String(baseName(path)),
 	}
 	t.setContent(data, m.profile)
-	t.vp = viewport.New(m.contentInnerWidth(), m.contentInnerHeight())
+	t.vp = viewport.New(viewport.WithWidth(m.contentInnerWidth()), viewport.WithHeight(m.contentInnerHeight()))
 	m.tabs = append(m.tabs, t)
 	m.active = len(m.tabs) - 1
 	m.layoutTabs()
@@ -728,8 +742,8 @@ func (m *Model) ensureRendered(t *tab) {
 	if w <= 0 || (t.rendered == w && t.renderedH == h && t.renderedMode == m.mode && t.renderedNums == m.showLineNums) {
 		return
 	}
-	t.vp.Width = w
-	t.vp.Height = m.contentInnerHeight()
+	t.vp.SetWidth(w)
+	t.vp.SetHeight(m.contentInnerHeight())
 	t.renderErr = ""
 
 	content := t.raw
@@ -767,7 +781,7 @@ func (m *Model) ensureRendered(t *tab) {
 			content = wrapText(t.raw, w-2)
 		}
 	}
-	off := t.vp.YOffset
+	off := t.vp.YOffset()
 	t.content = content
 	t.vp.SetContent(content)
 	t.vp.SetYOffset(off)
@@ -919,8 +933,8 @@ func (m *Model) layoutTabs() {
 		return
 	}
 	for _, t := range m.tabs {
-		t.vp.Width = m.contentInnerWidth()
-		t.vp.Height = m.contentInnerHeight()
+		t.vp.SetWidth(m.contentInnerWidth())
+		t.vp.SetHeight(m.contentInnerHeight())
 	}
 	if t := m.activeTab(); t != nil {
 		t.rendered = 0

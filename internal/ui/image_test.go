@@ -13,9 +13,9 @@ import (
 	"testing"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/colorprofile"
 )
 
 // encodePNG returns a w×h PNG filled with c, as a string.
@@ -156,7 +156,7 @@ func TestDecodeImageRejectsHugeDimensions(t *testing.T) {
 
 func TestRenderImageFitsBounds(t *testing.T) {
 	img, _ := decodeImage([]byte(encodePNG(t, 16, 16, color.RGBA{200, 30, 30, 255})))
-	out := renderImage(img, 4, 4, termenv.TrueColor)
+	out := renderImage(img, 4, 4, colorprofile.TrueColor)
 	lines := strings.Split(out, "\n")
 	if len(lines) > 4 {
 		t.Errorf("rendered %d rows, want <= 4", len(lines))
@@ -176,7 +176,7 @@ func TestRenderImageFitsBounds(t *testing.T) {
 
 func TestRenderImage256Profile(t *testing.T) {
 	img, _ := decodeImage([]byte(encodePNG(t, 8, 8, color.RGBA{0, 120, 255, 255})))
-	out := renderImage(img, 4, 4, termenv.ANSI256)
+	out := renderImage(img, 4, 4, colorprofile.ANSI256)
 	if !strings.Contains(out, "38;5;") {
 		t.Error("ANSI256 profile should emit 256-color sequences")
 	}
@@ -187,14 +187,14 @@ func TestRenderImage256Profile(t *testing.T) {
 
 func TestRenderImageUnusablePane(t *testing.T) {
 	img, _ := decodeImage([]byte(encodePNG(t, 8, 8, color.RGBA{0, 0, 0, 255})))
-	if out := renderImage(img, 1, 0, termenv.TrueColor); out != "" {
+	if out := renderImage(img, 1, 0, colorprofile.TrueColor); out != "" {
 		t.Errorf("unusable pane should render empty, got %q", out)
 	}
 }
 
 func TestOpenImageShowsHalfBlocks(t *testing.T) {
 	m := testModel(t, map[string]string{"pic.png": encodePNG(t, 8, 8, color.RGBA{200, 30, 30, 255}), "a.md": "# A"})
-	m.profile = termenv.TrueColor
+	m.profile = colorprofile.TrueColor
 	m.openFile(filepath.Join(m.root.Path, "pic.png"))
 	if len(m.tabs) != 1 {
 		t.Fatalf("tabs = %d, want 1", len(m.tabs))
@@ -214,7 +214,7 @@ func TestOpenImageShowsHalfBlocks(t *testing.T) {
 
 func TestCorruptImageFallsBackToPlaceholder(t *testing.T) {
 	m := testModel(t, map[string]string{"bad.png": "\x89PNG\r\n\x1a\n\x00broken"})
-	m.profile = termenv.TrueColor
+	m.profile = colorprofile.TrueColor
 	m.openFile(filepath.Join(m.root.Path, "bad.png"))
 	tb := m.tabs[0]
 	if tb.img != nil {
@@ -227,7 +227,7 @@ func TestCorruptImageFallsBackToPlaceholder(t *testing.T) {
 
 func TestLowColorProfileFallsBack(t *testing.T) {
 	m := testModel(t, map[string]string{"pic.png": encodePNG(t, 8, 8, color.RGBA{10, 10, 10, 255})})
-	m.profile = termenv.Ascii
+	m.profile = colorprofile.Ascii
 	m.openFile(filepath.Join(m.root.Path, "pic.png"))
 	if m.tabs[0].img != nil {
 		t.Error("Ascii profile should not create image tabs")
@@ -247,7 +247,7 @@ func TestImageTabRerendersAfterHeightOnlyResize(t *testing.T) {
 		"pic.png": encodePNG(t, 4, 200, color.RGBA{200, 30, 30, 255}),
 		"a.md":    "# A",
 	})
-	m.profile = termenv.TrueColor
+	m.profile = colorprofile.TrueColor
 	m.openFile(filepath.Join(m.root.Path, "pic.png"))
 	imgIdx := m.active
 	before := strings.Count(m.tabs[imgIdx].vp.View(), "▀")

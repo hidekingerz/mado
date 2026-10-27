@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/hidekingerz/mado/internal/config"
@@ -44,7 +44,7 @@ func TestSourceModeFoldsTextWithoutSpaces(t *testing.T) {
 	assertFolded(t, m.tabs[0].content, m.contentInnerWidth(), jpSentence)
 	m = update(t, m, keyRune('n'))
 	assertFolded(t, m.tabs[0].content, m.contentInnerWidth(), jpSentence)
-	if !strings.Contains(m.tabs[0].content, "1 ") || strings.Count(m.tabs[0].content, "\n") < 1 {
+	if !strings.Contains(ansi.Strip(m.tabs[0].content), "1 ") || strings.Count(m.tabs[0].content, "\n") < 1 {
 		t.Errorf("line numbers should number the folded line once and continue it on blank-gutter rows:\n%s", m.tabs[0].content)
 	}
 }
@@ -66,7 +66,7 @@ func TestSearchJumpCountsFoldedRowsOfTextWithoutSpaces(t *testing.T) {
 	if want < 0 {
 		t.Fatalf("target line not rendered:\n%s", m.tabs[0].content)
 	}
-	if got := sourceRow(raw, 2, m.tabs[0].vp.Width-2, false); got != want {
+	if got := sourceRow(raw, 2, m.tabs[0].vp.Width()-2, false); got != want {
 		t.Errorf("sourceRow = %d, but the line is rendered on row %d", got, want)
 	}
 }

@@ -7,8 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/key"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/hidekingerz/mado/internal/config"
 )
@@ -32,19 +34,19 @@ func selectedField(m Model) string {
 // moveTo puts the settings cursor on the named field.
 func moveTo(t *testing.T, m Model, key string) Model {
 	t.Helper()
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyHome})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyHome})
 	for range m.settings.rows {
 		if selectedField(m) == key {
 			return m
 		}
-		m = update(t, m, tea.KeyMsg{Type: tea.KeyDown})
+		m = update(t, m, tea.KeyPressMsg{Code: tea.KeyDown})
 	}
 	t.Fatalf("no field %q in the panel", key)
 	return m
 }
 
-func esc() tea.KeyMsg   { return tea.KeyMsg{Type: tea.KeyEsc} }
-func enter() tea.KeyMsg { return tea.KeyMsg{Type: tea.KeyEnter} }
+func esc() tea.KeyMsg   { return tea.KeyPressMsg{Code: tea.KeyEscape} }
+func enter() tea.KeyMsg { return tea.KeyPressMsg{Code: tea.KeyEnter} }
 
 func TestSettingsKeyOpensThePanel(t *testing.T) {
 	m := settingsModel(t, map[string]string{"a.md": "# A"}, "a.md")
@@ -55,7 +57,7 @@ func TestSettingsKeyOpensThePanel(t *testing.T) {
 	if m.settings.prevFocus != focusContent {
 		t.Errorf("prevFocus = %v, want content", m.settings.prevFocus)
 	}
-	v := m.View()
+	v := m.render()
 	for _, want := range []string{"Settings", "[general]", "watch", "[theme]", "accent_color", "[sidebar]", "config.toml"} {
 		if !strings.Contains(v, want) {
 			t.Errorf("panel should show %q:\n%s", want, v)
@@ -67,7 +69,7 @@ func TestSettingsKeyOpensThePanel(t *testing.T) {
 	if selectedField(m) != "watch" {
 		t.Errorf("cursor starts on the first field, got %q", selectedField(m))
 	}
-	if !strings.Contains(v, "default: false") {
+	if !strings.Contains(ansi.Strip(v), "default: false") {
 		t.Errorf("footer should describe the selected field:\n%s", v)
 	}
 }
@@ -89,8 +91,8 @@ func TestSettingsEscClosesAndRestoresFocus(t *testing.T) {
 func TestSettingsCursorSkipsHeadings(t *testing.T) {
 	m := settingsModel(t, map[string]string{"a.md": "# A"})
 	m = update(t, m, keyRune(','))
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyDown})
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyDown})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyDown})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyDown})
 	if got := selectedField(m); got != "style" {
 		t.Errorf("two downs from watch should skip [theme] and land on style, got %q", got)
 	}
@@ -103,18 +105,18 @@ func TestSettingsCursorSkipsHeadings(t *testing.T) {
 	if got := selectedField(m); got != "watch" {
 		t.Errorf("up at the top stays put, got %q", got)
 	}
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyEnd})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyEnd})
 	if got := selectedField(m); got != "help" {
 		t.Errorf("end should reach the last field, got %q", got)
 	}
-	if !strings.Contains(m.View(), "[keys]") {
+	if !strings.Contains(m.render(), "[keys]") {
 		t.Error("the list should scroll to keep the cursor in view")
 	}
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyHome})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyHome})
 	if got := selectedField(m); got != "watch" {
 		t.Errorf("home should reach the first field, got %q", got)
 	}
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyPgDown})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyPgDown})
 	if selectedField(m) == "watch" {
 		t.Error("pgdown should move")
 	}
@@ -135,7 +137,7 @@ func TestSettingsTypedKeysDoNotAct(t *testing.T) {
 	if len(m.tabs) != 1 {
 		t.Error("x must not close the tab")
 	}
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
 	if cmd == nil {
 		t.Fatal("ctrl+c should quit")
 	}
@@ -153,7 +155,7 @@ func TestSettingsCtrlCQuitsEvenWhenQuitIsRebound(t *testing.T) {
 	if !m.settings.open {
 		t.Fatal("',' should open the settings panel")
 	}
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
 	if cmd == nil {
 		t.Fatal("ctrl+c should quit even when quit is rebound off ctrl+c")
 	}
@@ -186,28 +188,28 @@ func TestSettingsMouseSelectsAndScrolls(t *testing.T) {
 	// List rows start below the tab bar (1), the border (1) and the
 	// header (2). Rows: [general], watch, mermaid, [theme], style.
 	top := tabBarHeight + 1 + settingsHeaderRows
-	m = update(t, m, tea.MouseMsg{X: x, Y: top + 4, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
+	m = update(t, m, tea.MouseClickMsg{X: x, Y: top + 4, Button: tea.MouseLeft})
 	if got := selectedField(m); got != "style" {
 		t.Errorf("click on row 4 should select style, got %q", got)
 	}
-	m = update(t, m, tea.MouseMsg{X: x, Y: top + 3, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
+	m = update(t, m, tea.MouseClickMsg{X: x, Y: top + 3, Button: tea.MouseLeft})
 	if got := selectedField(m); got != "style" {
 		t.Errorf("clicking a heading changes nothing, got %q", got)
 	}
-	m = update(t, m, tea.MouseMsg{X: x, Y: top, Button: tea.MouseButtonWheelDown})
+	m = update(t, m, tea.MouseWheelMsg{X: x, Y: top, Button: tea.MouseWheelDown})
 	if m.settings.off != wheelStep {
 		t.Errorf("wheel should scroll the list, off = %d", m.settings.off)
 	}
 }
 
-// checkSettingsFitsPane asserts that every line of m.View() is no wider
+// checkSettingsFitsPane asserts that every line of m.render() is no wider
 // than the pane and that there are exactly m.height lines: a row whose
 // plain layout does not fit w gets word-wrapped by the outer lipgloss
 // box, which both can miss (a wrapped line can still measure <= width)
 // but which always grows the frame taller than m.height.
 func checkSettingsFitsPane(t *testing.T, m Model) {
 	t.Helper()
-	lines := strings.Split(m.View(), "\n")
+	lines := strings.Split(m.render(), "\n")
 	for _, line := range lines {
 		if w := lipgloss.Width(line); w > m.width {
 			t.Errorf("line is %d wide, pane is %d: %q", w, m.width, line)
@@ -224,7 +226,7 @@ func TestSettingsRowsFitThePane(t *testing.T) {
 	m := settingsModel(t, map[string]string{"a.md": "# A"})
 	m = update(t, m, keyRune(','))
 	m = update(t, m, tea.WindowSizeMsg{Width: 44, Height: 12})
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyEnd})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyEnd})
 	checkSettingsFitsPane(t, m)
 }
 
@@ -313,7 +315,7 @@ func typeText(t *testing.T, m Model, s string) Model {
 	t.Helper()
 	for _, r := range s {
 		if r == ' ' {
-			m = update(t, m, tea.KeyMsg{Type: tea.KeySpace, Runes: []rune{' '}})
+			m = update(t, m, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
 		} else {
 			m = update(t, m, keyRune(r))
 		}
@@ -338,13 +340,13 @@ func TestSettingsToggleBoolAppliesAndSaves(t *testing.T) {
 	if !m.cfg.Sidebar.ShowAllFiles {
 		t.Fatal("enter should toggle the value on")
 	}
-	if !strings.Contains(m.View(), "notes.txt") {
+	if !strings.Contains(m.render(), "notes.txt") {
 		t.Error("the tree should reload with all files")
 	}
 	if got := savedConfig(t, m); got != "[sidebar]\nshow_all_files = true\n" {
 		t.Errorf("saved:\n%s", got)
 	}
-	m = update(t, m, tea.KeyMsg{Type: tea.KeySpace})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
 	if m.cfg.Sidebar.ShowAllFiles {
 		t.Fatal("space should toggle the value off")
 	}
@@ -377,18 +379,18 @@ func TestSettingsEnumCyclesWithArrows(t *testing.T) {
 	m := settingsModel(t, map[string]string{"a.md": "# A"}, "a.md")
 	m = update(t, m, keyRune(','))
 	m = moveTo(t, m, "default_mode")
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyRight})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyRight})
 	if m.cfg.Theme.DefaultMode != "source" || m.mode != modeSource {
 		t.Fatalf("right: default_mode = %q mode = %v", m.cfg.Theme.DefaultMode, m.mode)
 	}
 	if !strings.Contains(savedConfig(t, m), "default_mode = \"source\"") {
 		t.Errorf("saved:\n%s", savedConfig(t, m))
 	}
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyRight})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyRight})
 	if m.cfg.Theme.DefaultMode != "reader" {
 		t.Error("right past the last option wraps to the first")
 	}
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyLeft})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyLeft})
 	if m.cfg.Theme.DefaultMode != "source" {
 		t.Error("left cycles backwards")
 	}
@@ -403,11 +405,11 @@ func TestSettingsStyleCustomOpensAPrompt(t *testing.T) {
 	m = update(t, m, keyRune(','))
 	m = moveTo(t, m, "style")
 	// The test config starts at notty; ascii is next, then custom….
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyRight})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyRight})
 	if m.cfg.Theme.Style != "ascii" {
 		t.Fatalf("style = %q, want ascii", m.cfg.Theme.Style)
 	}
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyRight})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyRight})
 	if m.settings.editing != editText || m.settings.input != "" {
 		t.Fatalf("custom… should open an empty prompt: editing = %v input = %q", m.settings.editing, m.settings.input)
 	}
@@ -426,7 +428,7 @@ func TestSettingsStyleCustomOpensAPrompt(t *testing.T) {
 	if !strings.Contains(savedConfig(t, m), "style = \""+path+"\"") {
 		t.Errorf("saved:\n%s", savedConfig(t, m))
 	}
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyLeft})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyLeft})
 	if m.cfg.Theme.Style != "ascii" {
 		t.Errorf("left from a custom path goes to the option before custom…, got %q", m.cfg.Theme.Style)
 	}
@@ -440,7 +442,7 @@ func TestSettingsTextPromptValidatesAndKeepsInput(t *testing.T) {
 	if m.settings.editing != editText || m.settings.input != "#7C6AEF" {
 		t.Fatalf("the prompt should start with the current value: editing = %v input = %q", m.settings.editing, m.settings.input)
 	}
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyCtrlU})
+	m = update(t, m, tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
 	m = typeText(t, m, "#12")
 	m = update(t, m, enter())
 	if m.settings.editing != editText {
@@ -476,13 +478,13 @@ func TestSettingsPromptEditingKeys(t *testing.T) {
 	m = update(t, m, keyRune(','))
 	m = moveTo(t, m, "exclude")
 	m = update(t, m, enter())
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyCtrlU})
+	m = update(t, m, tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
 	m = typeText(t, m, "dist *.log")
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyBackspace})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyBackspace})
 	if m.settings.input != "dist *.lo" {
 		t.Errorf("backspace: input = %q", m.settings.input)
 	}
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyCtrlW})
+	m = update(t, m, tea.KeyPressMsg{Code: 'w', Mod: tea.ModCtrl})
 	if m.settings.input != "dist " {
 		t.Errorf("ctrl+w: input = %q", m.settings.input)
 	}
@@ -493,7 +495,7 @@ func TestSettingsWidthAndExclude(t *testing.T) {
 	m = update(t, m, keyRune(','))
 	m = moveTo(t, m, "width")
 	m = update(t, m, enter())
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyCtrlU})
+	m = update(t, m, tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
 	m = typeText(t, m, "40")
 	m = update(t, m, enter())
 	if m.sidebarWidth() != 40 {
@@ -505,7 +507,7 @@ func TestSettingsWidthAndExclude(t *testing.T) {
 
 	m = moveTo(t, m, "exclude")
 	m = update(t, m, enter())
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyCtrlU})
+	m = update(t, m, tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
 	m = typeText(t, m, "dist *.log")
 	m = update(t, m, enter())
 	if !reflect.DeepEqual(m.cfg.Search.Exclude, []string{"dist", "*.log"}) {
@@ -515,7 +517,7 @@ func TestSettingsWidthAndExclude(t *testing.T) {
 		t.Errorf("saved:\n%s", savedConfig(t, m))
 	}
 	m = update(t, m, enter())
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyCtrlU})
+	m = update(t, m, tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
 	m = update(t, m, enter())
 	if len(m.cfg.Search.Exclude) != 0 {
 		t.Errorf("an empty prompt clears the list, got %v", m.cfg.Search.Exclude)
@@ -542,7 +544,7 @@ func TestSettingsSaveFailureKeepsTheChange(t *testing.T) {
 func TestSettingsWithoutConfigPathWarns(t *testing.T) {
 	m := testModel(t, map[string]string{"a.md": "# A"})
 	m = update(t, m, keyRune(','))
-	if !strings.Contains(m.View(), "not saved") {
+	if !strings.Contains(m.render(), "not saved") {
 		t.Error("the panel should say changes are not saved")
 	}
 	m = moveTo(t, m, "show_hidden")
@@ -564,7 +566,7 @@ func TestSettingsPreservesTheRestOfTheFile(t *testing.T) {
 	m = update(t, m, keyRune(','))
 	m = moveTo(t, m, "width")
 	m = update(t, m, enter())
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyCtrlU})
+	m = update(t, m, tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
 	m = typeText(t, m, "48")
 	m = update(t, m, enter())
 	want := "# mine\n[theme]\nstyle = \"notty\" # keep\n\n[sidebar]\nwidth = 48\n"
@@ -581,10 +583,10 @@ func TestSettingsCaptureBindsAKey(t *testing.T) {
 	if m.settings.editing != editCapture {
 		t.Fatalf("enter should start a capture, editing = %v", m.settings.editing)
 	}
-	if !strings.Contains(m.View(), "press a key") || !strings.Contains(m.renderStatusBar(), "press a key") {
+	if !strings.Contains(m.render(), "press a key") || !strings.Contains(m.renderStatusBar(), "press a key") {
 		t.Error("the row and the status bar should ask for a key")
 	}
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyCtrlN})
+	m = update(t, m, tea.KeyPressMsg{Code: 'n', Mod: tea.ModCtrl})
 	if m.settings.editing != editNone {
 		t.Error("one press ends the capture")
 	}
@@ -595,7 +597,7 @@ func TestSettingsCaptureBindsAKey(t *testing.T) {
 		t.Errorf("saved:\n%s", savedConfig(t, m))
 	}
 	m = update(t, m, esc())
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyCtrlN})
+	m = update(t, m, tea.KeyPressMsg{Code: 'n', Mod: tea.ModCtrl})
 	if m.active != 0 {
 		t.Error("the new key should switch tabs as soon as the panel closes")
 	}
@@ -635,17 +637,20 @@ func TestSettingsCaptureTakesEscAsAKey(t *testing.T) {
 	}
 }
 
-func TestSettingsSpaceCannotBeBound(t *testing.T) {
+// The space bar is captured under its name. Bubble Tea v1 spelled it
+// " ", which was refused as unreadable in a config file; v2 calls it
+// "space", which is a name like any other.
+func TestSettingsSpaceIsBoundByName(t *testing.T) {
 	m := settingsModel(t, map[string]string{"a.md": "# A"})
 	m = update(t, m, keyRune(','))
 	m = moveTo(t, m, "help")
 	m = update(t, m, enter())
-	m = update(t, m, tea.KeyMsg{Type: tea.KeySpace, Runes: []rune{' '}})
-	if !strings.Contains(m.renderStatusBar(), "space") {
-		t.Errorf("status bar = %q", m.renderStatusBar())
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
+	if !reflect.DeepEqual(m.cfg.Keys.Help, []string{"?", "space"}) {
+		t.Errorf("help = %v, want space bound by name", m.cfg.Keys.Help)
 	}
-	if !reflect.DeepEqual(m.cfg.Keys.Help, []string{"?"}) {
-		t.Errorf("help = %v", m.cfg.Keys.Help)
+	if !key.Matches(tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}, m.keys.Help) {
+		t.Error("the bound space bar should match the help binding")
 	}
 }
 
@@ -653,14 +658,14 @@ func TestSettingsBackspaceRemovesTheLastKey(t *testing.T) {
 	m := settingsModel(t, map[string]string{"a.md": "# A"})
 	m = update(t, m, keyRune(','))
 	m = moveTo(t, m, "reload")
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyBackspace})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyBackspace})
 	if !reflect.DeepEqual(m.cfg.Keys.Reload, []string{"r"}) {
 		t.Errorf("reload = %v, want [r]", m.cfg.Keys.Reload)
 	}
 	if !strings.Contains(savedConfig(t, m), "reload = [\"r\"]") {
 		t.Errorf("saved:\n%s", savedConfig(t, m))
 	}
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyBackspace})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyBackspace})
 	if !reflect.DeepEqual(m.cfg.Keys.Reload, []string{"r"}) {
 		t.Error("the last key stays")
 	}

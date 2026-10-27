@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -8,7 +9,7 @@ import (
 	"github.com/alecthomas/chroma/v2/formatters"
 	"github.com/alecthomas/chroma/v2/lexers"
 	chromastyles "github.com/alecthomas/chroma/v2/styles"
-	"github.com/muesli/termenv"
+	"github.com/charmbracelet/colorprofile"
 )
 
 // chromaStyleName maps the resolved glamour style to a chroma style.
@@ -38,12 +39,12 @@ func chromaStyleName(glamourStyle, override string, darkBG bool) string {
 // capability. Queries the terminal — call once at startup only.
 // "" disables highlighting.
 func chromaFormatterName() string {
-	switch termenv.ColorProfile() {
-	case termenv.TrueColor:
+	switch colorprofile.Detect(os.Stdout, os.Environ()) {
+	case colorprofile.TrueColor:
 		return "terminal16m"
-	case termenv.ANSI256:
+	case colorprofile.ANSI256:
 		return "terminal256"
-	case termenv.ANSI:
+	case colorprofile.ANSI:
 		return "terminal16"
 	default:
 		return ""

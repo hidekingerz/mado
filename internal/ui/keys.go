@@ -1,7 +1,7 @@
 package ui
 
 import (
-	"github.com/charmbracelet/bubbles/key"
+	"charm.land/bubbles/v2/key"
 
 	"github.com/hidekingerz/mado/internal/config"
 )
@@ -32,6 +32,7 @@ type keyMap struct {
 
 func newKeyMap(k config.Keys) keyMap {
 	bind := func(keys []string, help string) key.Binding {
+		keys = keyNames(keys)
 		return key.NewBinding(key.WithKeys(keys...), key.WithHelp(joinKeys(keys), help))
 	}
 	return keyMap{
@@ -57,6 +58,20 @@ func newKeyMap(k config.Keys) keyMap {
 		Settings:       bind(k.Settings, "settings"),
 		Help:           bind(k.Help, "toggle help"),
 	}
+}
+
+// keyNames spells keys the way Bubble Tea v2 reports them. A config
+// written for an earlier mado may name the space bar " ", which is
+// how v1 spelled it; left alone it would never match again.
+func keyNames(keys []string) []string {
+	out := make([]string, len(keys))
+	for i, k := range keys {
+		if k == " " {
+			k = "space"
+		}
+		out[i] = k
+	}
+	return out
 }
 
 func joinKeys(keys []string) string {
