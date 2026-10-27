@@ -4,8 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
 )
 
 func TestLooksBinary(t *testing.T) {
@@ -38,7 +37,7 @@ func TestOpenBinaryFileShowsPlaceholder(t *testing.T) {
 	}
 
 	// Reload must not resurrect the raw bytes.
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	m = update(t, m, tea.KeyPressMsg{Code: 'r', Text: "r"})
 	if view := m.tabs[0].vp.View(); strings.Contains(view, "\x00") {
 		t.Error("reload must keep the placeholder for binary files")
 	}
@@ -61,7 +60,7 @@ func TestHasBinaryExt(t *testing.T) {
 
 func TestSidebarFileStyle(t *testing.T) {
 	m := testModel(t, map[string]string{"a.md": "# A"})
-	if fg, ok := m.styles.file.GetForeground().(lipgloss.Color); !ok || string(fg) != "#FFFFFF" {
+	if hexOf(m.styles.file.GetForeground()) != "#FFFFFF" {
 		t.Errorf("file style foreground = %v, want #FFFFFF", m.styles.file.GetForeground())
 	}
 	if m.styles.file.GetBold() {

@@ -4,9 +4,9 @@ import (
 	"io"
 	"strings"
 
+	"charm.land/lipgloss/v2"
 	"github.com/AlexanderGrooff/mermaid-ascii/pkg/diagram"
 	"github.com/AlexanderGrooff/mermaid-ascii/pkg/render"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/sirupsen/logrus"
 )
 

@@ -4,9 +4,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/key"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/key"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/hidekingerz/mado/internal/config"
 	"github.com/hidekingerz/mado/internal/termsafe"
@@ -175,7 +175,7 @@ func (m *Model) clampSettings() {
 
 // handleSettingsKey runs the panel's fixed keys. The keys that edit a
 // field are dispatched by its kind.
-func (m Model) handleSettingsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleSettingsKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	s := &m.settings
 	if s.editing == editText {
 		return m.handleSettingsTextKey(msg)
@@ -187,30 +187,23 @@ func (m Model) handleSettingsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.closeSettings()
 		return m, nil
 	}
-	switch msg.Type {
-	case tea.KeyEsc:
+	switch msg.String() {
+	case "esc":
 		m.closeSettings()
-	case tea.KeyUp, tea.KeyCtrlP:
+	case "up", "ctrl+p", "k":
 		m.moveSettingsCursor(-1)
-	case tea.KeyDown, tea.KeyCtrlN:
+	case "down", "ctrl+n", "j":
 		m.moveSettingsCursor(1)
-	case tea.KeyPgUp:
+	case "pgup":
 		m.moveSettingsCursor(-maxInt(m.settingsListHeight(), 1))
-	case tea.KeyPgDown:
+	case "pgdown":
 		m.moveSettingsCursor(maxInt(m.settingsListHeight(), 1))
-	case tea.KeyHome:
+	case "home":
 		m.moveSettingsCursor(-len(s.rows))
-	case tea.KeyEnd:
+	case "end":
 		m.moveSettingsCursor(len(s.rows))
-	case tea.KeyEnter, tea.KeySpace, tea.KeyLeft, tea.KeyRight, tea.KeyBackspace:
+	case "enter", "space", "left", "right", "backspace":
 		return m.editSetting(msg)
-	case tea.KeyRunes:
-		switch string(msg.Runes) {
-		case "k":
-			m.moveSettingsCursor(-1)
-		case "j":
-			m.moveSettingsCursor(1)
-		}
 	}
 	return m, nil
 }
@@ -219,33 +212,30 @@ func (m Model) handleSettingsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // the wheel. Clicks outside the panel close it and act as they would
 // without it.
 func (m Model) handleSettingsMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
-	inSidebar := m.sidebar && msg.X < m.sidebarWidth()
-	switch msg.Button {
-	case tea.MouseButtonWheelUp:
-		if inSidebar {
-			m.scrollTree(-wheelStep)
-		} else {
-			m.scrollSettings(-wheelStep)
+	at := msg.Mouse()
+	inSidebar := m.sidebar && at.X < m.sidebarWidth()
+	switch msg := msg.(type) {
+	case tea.MouseWheelMsg:
+		if step, ok := wheelStepOf(msg); ok {
+			if inSidebar {
+				m.scrollTree(step)
+			} else {
+				m.scrollSettings(step)
+			}
 		}
-	case tea.MouseButtonWheelDown:
-		if inSidebar {
-			m.scrollTree(wheelStep)
-		} else {
-			m.scrollSettings(wheelStep)
-		}
-	case tea.MouseButtonLeft:
-		if msg.Action != tea.MouseActionPress {
+	case tea.MouseClickMsg:
+		if msg.Button != tea.MouseLeft {
 			return m, nil
 		}
 		switch {
-		case msg.Y < tabBarHeight:
+		case at.Y < tabBarHeight:
 			m.closeSettings()
-			m.clickTabBar(msg.X)
+			m.clickTabBar(at.X)
 		case inSidebar:
 			m.closeSettings()
-			m.clickSidebar(msg.X, msg.Y)
+			m.clickSidebar(at.X, at.Y)
 		default:
-			row := msg.Y - tabBarHeight - 1 - settingsHeaderRows
+			row := at.Y - tabBarHeight - 1 - settingsHeaderRows
 			idx := m.settings.off + row
 			if row >= 0 && row < m.settingsListHeight() && idx < len(m.settings.rows) && m.settings.rows[idx].field >= 0 {
 				m.settings.editing = editNone
@@ -390,15 +380,16 @@ func (m Model) settingsHint() string {
 
 // editSetting starts or performs the edit msg asks for on the
 // selected field, by its kind.
-func (m Model) editSetting(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) editSetting(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	f, ok := m.selectedSetting()
 	if !ok {
 		return m, nil
 	}
 	cur := f.Get(&m.cfg)
+	k := msg.String()
 	switch f.Kind {
 	case config.KindBool:
-		if msg.Type == tea.KeyEnter || msg.Type == tea.KeySpace {
+		if k == "enter" || k == "space" {
 			cmd, _ := m.commitSetting(f, func(c *config.Config) error {
 				return f.Set(c, strconv.FormatBool(cur != "true"))
 			})
@@ -406,10 +397,10 @@ func (m Model) editSetting(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case config.KindEnum:
 		var step int
-		switch msg.Type {
-		case tea.KeyEnter, tea.KeyRight:
+		switch k {
+		case "enter", "right":
 			step = 1
-		case tea.KeyLeft:
+		case "left":
 			step = -1
 		default:
 			return m, nil
@@ -422,14 +413,14 @@ func (m Model) editSetting(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		cmd, _ := m.commitSetting(f, func(c *config.Config) error { return f.Set(c, next) })
 		return m, cmd
 	case config.KindText, config.KindInt, config.KindList:
-		if msg.Type == tea.KeyEnter {
+		if k == "enter" {
 			m.startSettingsText(cur, nil)
 		}
 	case config.KindKeys:
-		switch msg.Type {
-		case tea.KeyEnter:
+		switch k {
+		case "enter":
 			m.settings.editing = editCapture
-		case tea.KeyBackspace:
+		case "backspace":
 			cmd, _ := m.commitSetting(f, f.RemoveLastKey)
 			return m, cmd
 		}
@@ -468,12 +459,12 @@ func (m *Model) startSettingsText(value string, options []string) {
 
 // handleSettingsTextKey edits the prompt. enter commits, esc cancels;
 // every other key edits the text the way the search prompt does.
-func (m Model) handleSettingsTextKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleSettingsTextKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	s := &m.settings
-	switch msg.Type {
-	case tea.KeyEsc:
+	switch msg.String() {
+	case "esc":
 		s.editing = editNone
-	case tea.KeyEnter:
+	case "enter":
 		f, ok := m.selectedSetting()
 		if !ok {
 			s.editing = editNone
@@ -496,7 +487,7 @@ func (m Model) handleSettingsTextKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // handleSettingsCaptureKey binds the pressed key to the selected
 // action. Whatever the key is, it is the value — so esc can be bound
 // — except ctrl+c, which handleKey turned into quit before this.
-func (m Model) handleSettingsCaptureKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleSettingsCaptureKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	m.settings.editing = editNone
 	f, ok := m.selectedSetting()
 	if !ok {

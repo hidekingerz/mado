@@ -4,15 +4,27 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/hidekingerz/mado/internal/termsafe"
 )
 
 const maxTabTitleWidth = 20
 
-// View implements tea.Model.
-func (m Model) View() string {
+// View implements tea.Model. The alternate screen and mouse reporting
+// are declared here, on every frame, rather than requested once as
+// program options: that is how Bubble Tea v2 is told what state the
+// terminal should be in.
+func (m Model) View() tea.View {
+	v := tea.NewView(m.render())
+	v.AltScreen = true
+	v.MouseMode = tea.MouseModeCellMotion
+	return v
+}
+
+// render draws the whole screen.
+func (m Model) render() string {
 	if m.width == 0 || m.height == 0 {
 		return "loading…"
 	}
@@ -130,8 +142,8 @@ func (m Model) renderSidebar() string {
 	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color(borderColor)).
-		Width(innerW).
-		Height(innerH).
+		Width(innerW + 2). // Lip Gloss v2 sizes include the border
+		Height(innerH + 2).
 		Render(strings.Join(rows, "\n"))
 }
 
@@ -162,8 +174,8 @@ func (m Model) renderContent() string {
 	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color(borderColor)).
-		Width(innerW).
-		Height(innerH).
+		Width(innerW + 2). // Lip Gloss v2 sizes include the border
+		Height(innerH + 2).
 		Render(body)
 }
 

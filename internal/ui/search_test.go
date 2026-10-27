@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/hidekingerz/mado/internal/config"
 	"github.com/hidekingerz/mado/internal/search"
@@ -32,7 +32,7 @@ func runCmd(t *testing.T, m Model, cmd tea.Cmd) Model {
 	return update(t, m, msg)
 }
 
-func keyRune(r rune) tea.KeyMsg { return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}} }
+func keyRune(r rune) tea.KeyMsg { return tea.KeyPressMsg{Code: r, Text: string(r)} }
 
 // typeQuery types s into the search prompt and waits for the results.
 func typeQuery(t *testing.T, m Model, s string) Model {
@@ -40,7 +40,7 @@ func typeQuery(t *testing.T, m Model, s string) Model {
 	var cmd tea.Cmd
 	for _, r := range s {
 		if r == ' ' {
-			m, cmd = updateCmd(t, m, tea.KeyMsg{Type: tea.KeySpace, Runes: []rune{' '}})
+			m, cmd = updateCmd(t, m, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
 		} else {
 			m, cmd = updateCmd(t, m, keyRune(r))
 		}
@@ -65,7 +65,7 @@ func TestSearchKeyOpensNamePanelAndFilters(t *testing.T) {
 	if cmd != nil {
 		t.Error("an empty query should not start a search")
 	}
-	if v := m.View(); !strings.Contains(v, "Search names") || !strings.Contains(v, "Type to search file names") {
+	if v := m.render(); !strings.Contains(v, "Search names") || !strings.Contains(v, "Type to search file names") {
 		t.Errorf("panel should show its title and a hint:\n%s", v)
 	}
 
@@ -73,7 +73,7 @@ func TestSearchKeyOpensNamePanelAndFilters(t *testing.T) {
 	if got := resultRels(m); got != "docs/plan.md" {
 		t.Errorf("results = %q, want docs/plan.md", got)
 	}
-	if v := m.View(); !strings.Contains(v, "docs/plan.md") || !strings.Contains(v, "1 match") {
+	if v := m.render(); !strings.Contains(v, "docs/plan.md") || !strings.Contains(v, "1 match") {
 		t.Errorf("panel should list the match and count it:\n%s", v)
 	}
 	if !strings.Contains(m.renderStatusBar(), "[SEARCH NAMES]") {
@@ -85,7 +85,7 @@ func TestSearchEnterOpensTheSelectedFile(t *testing.T) {
 	m := testModel(t, map[string]string{"a.md": "# A", "docs/plan.md": "# P"})
 	m, _ = updateCmd(t, m, keyRune('/'))
 	m = typeQuery(t, m, "plan")
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	if m.search.open {
 		t.Error("opening a result should close the panel")
@@ -105,13 +105,13 @@ func TestSearchArrowsMoveTheSelection(t *testing.T) {
 	m := testModel(t, map[string]string{"n1.md": "", "n2.md": "", "n3.md": ""})
 	m, _ = updateCmd(t, m, keyRune('/'))
 	m = typeQuery(t, m, "n")
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyDown})
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyDown})
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyUp})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyDown})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyDown})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyUp})
 	if m.search.cursor != 1 {
 		t.Fatalf("cursor = %d, want 1", m.search.cursor)
 	}
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 	if len(m.tabs) != 1 || m.tabs[0].title != "n2.md" {
 		t.Errorf("tabs = %+v, want n2.md", m.tabs)
 	}
@@ -133,7 +133,7 @@ func TestSearchTypedQuitKeyIsPartOfTheQuery(t *testing.T) {
 		t.Errorf("help = %v query = %q", m.showHelp, m.search.query)
 	}
 
-	_, cmd := updateCmd(t, m, tea.KeyMsg{Type: tea.KeyCtrlC})
+	_, cmd := updateCmd(t, m, tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
 	if cmd == nil {
 		t.Fatal("ctrl+c should still quit")
 	}
@@ -147,7 +147,7 @@ func TestSearchContentKeyAndTabSwitchTargets(t *testing.T) {
 		"a.md": "# A\n\nnothing\nthe needle is here\n",
 		"b.md": "# needle\n",
 	})
-	m, _ = updateCmd(t, m, tea.KeyMsg{Type: tea.KeyCtrlF})
+	m, _ = updateCmd(t, m, tea.KeyPressMsg{Code: 'f', Mod: tea.ModCtrl})
 	if !m.search.open || m.search.target != search.Contents {
 		t.Fatalf("open = %v target = %v, want open contents", m.search.open, m.search.target)
 	}
@@ -158,12 +158,12 @@ func TestSearchContentKeyAndTabSwitchTargets(t *testing.T) {
 	if r := m.search.results[0]; r.Line != 4 || r.Text != "the needle is here" {
 		t.Errorf("first match = %+v", r)
 	}
-	v := m.View()
+	v := m.render()
 	if !strings.Contains(v, "a.md:4") || !strings.Contains(v, "the needle is here") {
 		t.Errorf("panel should show path, line and text:\n%s", v)
 	}
 
-	m, cmd := updateCmd(t, m, tea.KeyMsg{Type: tea.KeyTab})
+	m, cmd := updateCmd(t, m, tea.KeyPressMsg{Code: tea.KeyTab})
 	if m.search.target != search.Names {
 		t.Fatal("tab should switch to names")
 	}
@@ -171,15 +171,15 @@ func TestSearchContentKeyAndTabSwitchTargets(t *testing.T) {
 	if got := resultRels(m); got != "" {
 		t.Errorf("no file is named needle, got %q", got)
 	}
-	m, cmd = updateCmd(t, m, tea.KeyMsg{Type: tea.KeyTab})
+	m, cmd = updateCmd(t, m, tea.KeyPressMsg{Code: tea.KeyTab})
 	m = runCmd(t, m, cmd)
 	if m.search.target != search.Contents || len(m.search.results) != 2 {
 		t.Errorf("tab again: target = %v results = %d", m.search.target, len(m.search.results))
 	}
 	// The content-search key switches target while the panel is open.
-	m, cmd = updateCmd(t, m, tea.KeyMsg{Type: tea.KeyTab})
+	m, cmd = updateCmd(t, m, tea.KeyPressMsg{Code: tea.KeyTab})
 	m = runCmd(t, m, cmd)
-	m, cmd = updateCmd(t, m, tea.KeyMsg{Type: tea.KeyCtrlF})
+	m, cmd = updateCmd(t, m, tea.KeyPressMsg{Code: 'f', Mod: tea.ModCtrl})
 	m = runCmd(t, m, cmd)
 	if m.search.target != search.Contents {
 		t.Error("ctrl+f inside the panel should switch to contents")
@@ -199,16 +199,16 @@ func TestSearchContentMatchScrollsSourceToItsLine(t *testing.T) {
 	cfg.Theme.Style = "notty"
 	cfg.Theme.DefaultMode = "source"
 	m := testModelWithConfig(t, cfg, map[string]string{"a.md": b.String()})
-	m, _ = updateCmd(t, m, tea.KeyMsg{Type: tea.KeyCtrlF})
+	m, _ = updateCmd(t, m, tea.KeyPressMsg{Code: 'f', Mod: tea.ModCtrl})
 	m = typeQuery(t, m, "needle")
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	tab := m.activeTab()
 	if tab == nil || tab.title != "a.md" {
 		t.Fatalf("active tab = %+v", tab)
 	}
-	if tab.vp.YOffset != 59 {
-		t.Errorf("YOffset = %d, want 59 (line 60 at the top)", tab.vp.YOffset)
+	if tab.vp.YOffset() != 59 {
+		t.Errorf("YOffset = %d, want 59 (line 60 at the top)", tab.vp.YOffset())
 	}
 	if top := strings.SplitN(tab.vp.View(), "\n", 2)[0]; !strings.Contains(top, "needle") {
 		t.Errorf("top row = %q, want the match", top)
@@ -226,15 +226,15 @@ func TestSearchContentMatchScrollsRenderedMarkdown(t *testing.T) {
 		b.WriteString("Trailing text.\n\n")
 	}
 	m := testModel(t, map[string]string{"a.md": b.String()})
-	m, _ = updateCmd(t, m, tea.KeyMsg{Type: tea.KeyCtrlF})
+	m, _ = updateCmd(t, m, tea.KeyPressMsg{Code: 'f', Mod: tea.ModCtrl})
 	m = typeQuery(t, m, "needle")
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	tab := m.activeTab()
 	if tab == nil || m.mode != modeReader {
 		t.Fatalf("tab = %+v mode = %v", tab, m.mode)
 	}
-	if tab.vp.YOffset == 0 {
+	if tab.vp.YOffset() == 0 {
 		t.Fatal("the viewport should have scrolled to the match")
 	}
 	if top := strings.SplitN(tab.vp.View(), "\n", 2)[0]; !strings.Contains(top, "needle") {
@@ -266,14 +266,14 @@ func TestSearchEscRestoresTheFocus(t *testing.T) {
 		t.Fatal("setup: focus should be content")
 	}
 	m, _ = updateCmd(t, m, keyRune('/'))
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyEsc})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
 	if m.search.open || m.focus != focusContent {
 		t.Errorf("open = %v focus = %v, want closed/content", m.search.open, m.focus)
 	}
 
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyEsc}) // back to the sidebar
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyEscape}) // back to the sidebar
 	m, _ = updateCmd(t, m, keyRune('/'))
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyEsc})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
 	if m.focus != focusSidebar {
 		t.Errorf("focus = %v, want sidebar", m.focus)
 	}
@@ -283,7 +283,7 @@ func TestSearchKeepsTheQueryAcrossReopen(t *testing.T) {
 	m := testModel(t, map[string]string{"plan.md": "# P"})
 	m, _ = updateCmd(t, m, keyRune('/'))
 	m = typeQuery(t, m, "plan")
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyEsc})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
 	m, cmd := updateCmd(t, m, keyRune('/'))
 	if m.search.query != "plan" {
 		t.Fatalf("query = %q, want plan", m.search.query)
@@ -298,15 +298,15 @@ func TestSearchEditingKeys(t *testing.T) {
 	m := testModel(t, map[string]string{"a.md": ""})
 	m, _ = updateCmd(t, m, keyRune('/'))
 	m = typeQuery(t, m, "one two")
-	m, _ = updateCmd(t, m, tea.KeyMsg{Type: tea.KeyBackspace})
+	m, _ = updateCmd(t, m, tea.KeyPressMsg{Code: tea.KeyBackspace})
 	if m.search.query != "one tw" {
 		t.Errorf("after backspace = %q", m.search.query)
 	}
-	m, _ = updateCmd(t, m, tea.KeyMsg{Type: tea.KeyCtrlW})
+	m, _ = updateCmd(t, m, tea.KeyPressMsg{Code: 'w', Mod: tea.ModCtrl})
 	if m.search.query != "one " {
 		t.Errorf("after ctrl+w = %q", m.search.query)
 	}
-	m, cmd := updateCmd(t, m, tea.KeyMsg{Type: tea.KeyCtrlU})
+	m, cmd := updateCmd(t, m, tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
 	if m.search.query != "" || cmd != nil {
 		t.Errorf("after ctrl+u = %q (cmd %v)", m.search.query, cmd != nil)
 	}
@@ -314,7 +314,7 @@ func TestSearchEditingKeys(t *testing.T) {
 		t.Error("clearing the query should clear the results")
 	}
 	// A pasted newline is dropped, the rest kept.
-	m, _ = updateCmd(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a\nb"), Paste: true})
+	m, _ = updateCmd(t, m, tea.PasteMsg{Content: "a\nb"})
 	if m.search.query != "ab" {
 		t.Errorf("after paste = %q", m.search.query)
 	}
@@ -337,7 +337,7 @@ func TestSearchMouseClickOpensAResult(t *testing.T) {
 	m = typeQuery(t, m, "n")
 	// The list starts below the tab bar, the pane border and the header.
 	y := tabBarHeight + 1 + searchHeaderRows + 1
-	m = update(t, m, tea.MouseMsg{X: m.sidebarWidth() + 3, Y: y, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
+	m = update(t, m, tea.MouseClickMsg{X: m.sidebarWidth() + 3, Y: y, Button: tea.MouseLeft})
 	if len(m.tabs) != 1 || m.tabs[0].title != "n2.md" {
 		t.Errorf("tabs = %+v, want n2.md", m.tabs)
 	}
@@ -346,7 +346,7 @@ func TestSearchMouseClickOpensAResult(t *testing.T) {
 func TestSearchClickOnTheSidebarClosesThePanel(t *testing.T) {
 	m := testModel(t, map[string]string{"a.md": "# A", "b.md": "# B"})
 	m, _ = updateCmd(t, m, keyRune('/'))
-	m = update(t, m, tea.MouseMsg{X: 3, Y: 3, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
+	m = update(t, m, tea.MouseClickMsg{X: 3, Y: 3, Button: tea.MouseLeft})
 	if m.search.open {
 		t.Error("clicking the tree should close the search")
 	}
@@ -371,7 +371,7 @@ func TestSearchHonoursTheConfiguredExclusions(t *testing.T) {
 	if got := resultRels(m); got != "plan.md docs/plan.md" {
 		t.Errorf("names = %q", got)
 	}
-	m, cmd := updateCmd(t, m, tea.KeyMsg{Type: tea.KeyTab})
+	m, cmd := updateCmd(t, m, tea.KeyPressMsg{Code: tea.KeyTab})
 	m = runCmd(t, m, cmd)
 	if got := resultRels(m); got != "docs/plan.md plan.md" {
 		t.Errorf("contents = %q", got)
@@ -380,14 +380,14 @@ func TestSearchHonoursTheConfiguredExclusions(t *testing.T) {
 
 func TestSearchFollowsTheSidebarFilter(t *testing.T) {
 	m := testModel(t, map[string]string{"a.md": "needle", "a.txt": "needle"})
-	m, _ = updateCmd(t, m, tea.KeyMsg{Type: tea.KeyCtrlF})
+	m, _ = updateCmd(t, m, tea.KeyPressMsg{Code: 'f', Mod: tea.ModCtrl})
 	m = typeQuery(t, m, "needle")
 	if got := resultRels(m); got != "a.md" {
 		t.Fatalf("markdown only: %q", got)
 	}
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyEsc})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
 	m = update(t, m, keyRune('a')) // show all files
-	m, cmd := updateCmd(t, m, tea.KeyMsg{Type: tea.KeyCtrlF})
+	m, cmd := updateCmd(t, m, tea.KeyPressMsg{Code: 'f', Mod: tea.ModCtrl})
 	m = runCmd(t, m, cmd)
 	if got := resultRels(m); got != "a.md a.txt" {
 		t.Errorf("all files: %q", got)
@@ -399,24 +399,24 @@ func TestSearchResultsCannotDriveTheTerminal(t *testing.T) {
 		"a.md":              "needle " + osc52 + " tail\n",
 		"n" + osc52 + ".md": "",
 	})
-	m, _ = updateCmd(t, m, tea.KeyMsg{Type: tea.KeyCtrlF})
+	m, _ = updateCmd(t, m, tea.KeyPressMsg{Code: 'f', Mod: tea.ModCtrl})
 	m = typeQuery(t, m, "needle")
-	if v := m.View(); strings.Contains(v, "\x1b]52") {
+	if v := m.render(); strings.Contains(v, "\x1b]52") {
 		t.Errorf("a matching line reached the terminal unescaped:\n%q", v)
 	}
-	m, cmd := updateCmd(t, m, tea.KeyMsg{Type: tea.KeyTab})
+	m, cmd := updateCmd(t, m, tea.KeyPressMsg{Code: tea.KeyTab})
 	m = runCmd(t, m, cmd)
-	m, _ = updateCmd(t, m, tea.KeyMsg{Type: tea.KeyCtrlU})
+	m, _ = updateCmd(t, m, tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
 	m = typeQuery(t, m, "n")
 	if len(m.search.results) == 0 {
 		t.Fatal("the escape-named file should match")
 	}
-	if v := m.View(); strings.Contains(v, "\x1b]52") {
+	if v := m.render(); strings.Contains(v, "\x1b]52") {
 		t.Errorf("a file name reached the terminal unescaped:\n%q", v)
 	}
 	// The typed query is echoed; an escape typed into it is shown too.
-	m, _ = updateCmd(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(osc52), Paste: true})
-	if v := m.View(); strings.Contains(v, "\x1b]52") {
+	m, _ = updateCmd(t, m, tea.PasteMsg{Content: osc52})
+	if v := m.render(); strings.Contains(v, "\x1b]52") {
 		t.Errorf("a pasted escape reached the terminal:\n%q", v)
 	}
 }
@@ -450,7 +450,7 @@ func TestTruncateLeftKeepsTheTail(t *testing.T) {
 func TestHelpListsTheSearchKeys(t *testing.T) {
 	m := testModel(t, map[string]string{"a.md": "# A"})
 	m = update(t, m, keyRune('?'))
-	v := m.View()
+	v := m.render()
 	if !strings.Contains(v, "search file names") || !strings.Contains(v, "search file contents") {
 		t.Errorf("help should list the search actions:\n%s", v)
 	}
@@ -475,17 +475,17 @@ func TestSearchPanelFitsThePane(t *testing.T) {
 		files[filepath.Join("some", "rather", "deeply", "nested", "directory", strings.Repeat("n", i+1)+".md")] = strings.Repeat("needle ", 40)
 	}
 	m := testModel(t, files)
-	m, _ = updateCmd(t, m, tea.KeyMsg{Type: tea.KeyCtrlF})
+	m, _ = updateCmd(t, m, tea.KeyPressMsg{Code: 'f', Mod: tea.ModCtrl})
 	m = typeQuery(t, m, "needle")
-	lines := strings.Split(m.View(), "\n")
+	lines := strings.Split(m.render(), "\n")
 	if len(lines) != m.height {
 		t.Errorf("view has %d lines, want %d — a long row wrapped", len(lines), m.height)
 	}
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyEnd})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyEnd})
 	if m.search.cursor != len(m.search.results)-1 {
 		t.Errorf("end: cursor = %d", m.search.cursor)
 	}
-	if lines := strings.Split(m.View(), "\n"); len(lines) != m.height {
+	if lines := strings.Split(m.render(), "\n"); len(lines) != m.height {
 		t.Errorf("scrolled view has %d lines, want %d", len(lines), m.height)
 	}
 	if _, err := os.Stat(m.root.Path); err != nil {

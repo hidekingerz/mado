@@ -2,14 +2,15 @@ package ui
 
 import (
 	"fmt"
+	"image/color"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/hidekingerz/mado/internal/config"
 	"github.com/hidekingerz/mado/internal/remote"
@@ -67,16 +68,16 @@ func TestOpenMultipleFilesAsTabs(t *testing.T) {
 		t.Errorf("active = %d, want 1", m.active)
 	}
 
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyTab})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyTab})
 	if m.active != 0 {
 		t.Errorf("after next_tab active = %d, want 0 (wrap)", m.active)
 	}
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyShiftTab})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
 	if m.active != 1 {
 		t.Errorf("after prev_tab active = %d, want 1", m.active)
 	}
 
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	m = update(t, m, tea.KeyPressMsg{Code: 'x', Text: "x"})
 	if len(m.tabs) != 1 {
 		t.Fatalf("after close tabs = %d, want 1", len(m.tabs))
 	}
@@ -97,8 +98,8 @@ func TestKeyboardOpensFileFromTree(t *testing.T) {
 	if m.focus != focusSidebar {
 		t.Fatal("initial focus should be the sidebar")
 	}
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyDown})
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyDown})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 	if len(m.tabs) != 1 || m.tabs[0].title != "b.md" {
 		t.Fatalf("expected b.md open, got %+v", m.tabs)
 	}
@@ -110,7 +111,7 @@ func TestKeyboardOpensFileFromTree(t *testing.T) {
 func TestMouseClickOpensFile(t *testing.T) {
 	m := testModel(t, map[string]string{"a.md": "# A", "b.md": "# B"})
 	// Tree rows start below the tab bar and sidebar top border (y=2).
-	click := tea.MouseMsg{X: 3, Y: 3, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft}
+	click := tea.MouseClickMsg{X: 3, Y: 3, Button: tea.MouseLeft}
 	m = update(t, m, click)
 	if len(m.tabs) != 1 || m.tabs[0].title != "b.md" {
 		t.Fatalf("expected b.md open via mouse, got %+v", m.tabs)
@@ -123,11 +124,11 @@ func TestMouseClickTabBarSwitchesAndCloses(t *testing.T) {
 		t.Fatalf("active = %d, want 1", m.active)
 	}
 	first := m.tabRegions[0]
-	m = update(t, m, tea.MouseMsg{X: first.start + 1, Y: 0, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
+	m = update(t, m, tea.MouseClickMsg{X: first.start + 1, Y: 0, Button: tea.MouseLeft})
 	if m.active != 0 {
 		t.Errorf("click tab 0: active = %d, want 0", m.active)
 	}
-	m = update(t, m, tea.MouseMsg{X: m.tabRegions[0].closeX, Y: 0, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
+	m = update(t, m, tea.MouseClickMsg{X: m.tabRegions[0].closeX, Y: 0, Button: tea.MouseLeft})
 	if len(m.tabs) != 1 || m.tabs[0].title != "b.md" {
 		t.Fatalf("expected a.md closed via ✕, got %+v", m.tabs)
 	}
@@ -140,27 +141,27 @@ func TestMouseWheelScrollsContent(t *testing.T) {
 	}
 	m := testModel(t, map[string]string{"a.md": long}, "a.md")
 	contentX := m.sidebarWidth() + 5
-	m = update(t, m, tea.MouseMsg{X: contentX, Y: 10, Button: tea.MouseButtonWheelDown})
-	if m.tabs[0].vp.YOffset == 0 {
+	m = update(t, m, tea.MouseWheelMsg{X: contentX, Y: 10, Button: tea.MouseWheelDown})
+	if m.tabs[0].vp.YOffset() == 0 {
 		t.Error("wheel down should scroll the viewport")
 	}
-	m = update(t, m, tea.MouseMsg{X: contentX, Y: 10, Button: tea.MouseButtonWheelUp})
-	if m.tabs[0].vp.YOffset != 0 {
-		t.Errorf("wheel up should scroll back, offset = %d", m.tabs[0].vp.YOffset)
+	m = update(t, m, tea.MouseWheelMsg{X: contentX, Y: 10, Button: tea.MouseWheelUp})
+	if m.tabs[0].vp.YOffset() != 0 {
+		t.Errorf("wheel up should scroll back, offset = %d", m.tabs[0].vp.YOffset())
 	}
 }
 
 func TestToggleSidebar(t *testing.T) {
 	m := testModel(t, map[string]string{"a.md": "# A"}, "a.md")
-	w := m.tabs[0].vp.Width
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'b'}})
+	w := m.tabs[0].vp.Width()
+	m = update(t, m, tea.KeyPressMsg{Code: 'b', Text: "b"})
 	if m.sidebar {
 		t.Fatal("sidebar should be hidden")
 	}
-	if m.tabs[0].vp.Width <= w {
-		t.Errorf("content should widen: %d -> %d", w, m.tabs[0].vp.Width)
+	if m.tabs[0].vp.Width() <= w {
+		t.Errorf("content should widen: %d -> %d", w, m.tabs[0].vp.Width())
 	}
-	if m.View() == "" {
+	if m.render() == "" {
 		t.Error("view should render without sidebar")
 	}
 }
@@ -175,7 +176,7 @@ func TestToggleModeSwitchesReaderAndSource(t *testing.T) {
 		t.Errorf("reader mode should not show the ## marker:\n%s", reader)
 	}
 
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'m'}})
+	m = update(t, m, tea.KeyPressMsg{Code: 'm', Text: "m"})
 	if m.mode != modeSource {
 		t.Fatal("mode should toggle to source")
 	}
@@ -184,7 +185,7 @@ func TestToggleModeSwitchesReaderAndSource(t *testing.T) {
 		t.Errorf("source mode should show the raw syntax:\n%s", source)
 	}
 
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'m'}})
+	m = update(t, m, tea.KeyPressMsg{Code: 'm', Text: "m"})
 	if m.mode != modeReader {
 		t.Fatal("mode should toggle back to reader")
 	}
@@ -215,7 +216,7 @@ func TestSourceModeHighlights(t *testing.T) {
 	m.sourceStyle = "catppuccin-mocha"
 	m.formatter = "terminal16m"
 
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'m'}}) // reader → source
+	m = update(t, m, tea.KeyPressMsg{Code: 'm', Text: "m"}) // reader → source
 	if m.mode != modeSource {
 		t.Fatalf("mode = %v, want source", m.mode)
 	}
@@ -223,7 +224,7 @@ func TestSourceModeHighlights(t *testing.T) {
 		t.Error("source mode content should contain ANSI escapes")
 	}
 
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'m'}}) // back to reader: must not panic
+	m = update(t, m, tea.KeyPressMsg{Code: 'm', Text: "m"}) // back to reader: must not panic
 	if m.mode != modeReader {
 		t.Fatalf("mode = %v, want reader", m.mode)
 	}
@@ -231,7 +232,7 @@ func TestSourceModeHighlights(t *testing.T) {
 
 func TestSourceModeNottyStaysPlain(t *testing.T) {
 	m := testModel(t, map[string]string{"doc.md": "# Title\n"}, "doc.md")
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'m'}})
+	m = update(t, m, tea.KeyPressMsg{Code: 'm', Text: "m"})
 	if view := m.tabs[0].vp.View(); strings.Contains(view, "\x1b[38") {
 		t.Error("notty style must not colorize source mode")
 	}
@@ -250,11 +251,11 @@ func TestToggleAllFilesShowsNonMarkdown(t *testing.T) {
 	if has("main.go") {
 		t.Fatal("main.go should be hidden by default")
 	}
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	m = update(t, m, tea.KeyPressMsg{Code: 'a', Text: "a"})
 	if !has("main.go") {
 		t.Fatal("main.go should appear after toggle")
 	}
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	m = update(t, m, tea.KeyPressMsg{Code: 'a', Text: "a"})
 	if has("main.go") {
 		t.Fatal("main.go should be hidden again after second toggle")
 	}
@@ -263,8 +264,8 @@ func TestToggleAllFilesShowsNonMarkdown(t *testing.T) {
 func TestToggleAllFilesKeepsExpansion(t *testing.T) {
 	m := testModel(t, map[string]string{"docs/a.md": "# A", "b.md": "# B", "main.go": "package main\n"})
 	// Directories sort first: cursor 0 is docs. Enter expands it.
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyEnter})
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
+	m = update(t, m, tea.KeyPressMsg{Code: 'a', Text: "a"})
 	var docsExpanded, hasGo bool
 	for _, it := range m.items {
 		if it.Node.Name == "docs" && it.Node.Expanded {
@@ -287,15 +288,15 @@ func TestToggleAllFilesKeepsExpansion(t *testing.T) {
 func TestReloadKeepsNestedExpansion(t *testing.T) {
 	m := testModel(t, map[string]string{"docs/inner/deep.md": "# D", "top.md": "# T"})
 	// cursor 0 = docs; expand it, then expand docs/inner below it.
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyEnter})
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyDown})
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyDown})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 	rows := len(m.items) // docs, inner, deep.md, top.md
 	if rows != 4 {
 		t.Fatalf("setup: %d rows, want 4", rows)
 	}
 
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	m = update(t, m, tea.KeyPressMsg{Code: 'r', Text: "r"})
 	if len(m.items) != rows {
 		var names []string
 		for _, it := range m.items {
@@ -307,7 +308,7 @@ func TestReloadKeepsNestedExpansion(t *testing.T) {
 
 func TestReloadKeepsCursorOnSameNode(t *testing.T) {
 	m := testModel(t, map[string]string{"b.md": "# B", "z.md": "# Z"})
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyDown}) // cursor on z.md
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyDown}) // cursor on z.md
 	if m.items[m.cursor].Node.Name != "z.md" {
 		t.Fatalf("setup: cursor on %q", m.items[m.cursor].Node.Name)
 	}
@@ -315,7 +316,7 @@ func TestReloadKeepsCursorOnSameNode(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(m.root.Path, "a.md"), []byte("# A"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	m = update(t, m, tea.KeyPressMsg{Code: 'r', Text: "r"})
 	if got := m.items[m.cursor].Node.Name; got != "z.md" {
 		t.Errorf("cursor drifted to %q after reload, want z.md", got)
 	}
@@ -323,22 +324,22 @@ func TestReloadKeepsCursorOnSameNode(t *testing.T) {
 
 func TestViewRenders(t *testing.T) {
 	m := testModel(t, map[string]string{"a.md": "# A"}, "a.md")
-	v := m.View()
+	v := m.render()
 	if v == "" {
 		t.Fatal("empty view")
 	}
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'?'}})
+	m = update(t, m, tea.KeyPressMsg{Code: '?', Text: "?"})
 	if !m.showHelp {
 		t.Fatal("help should toggle on")
 	}
-	if m.View() == "" {
+	if m.render() == "" {
 		t.Fatal("empty help view")
 	}
 }
 
 func TestSidebarMarksDirectories(t *testing.T) {
 	m := testModel(t, map[string]string{"docs/a.md": "# A", "b.md": "# B"})
-	view := m.View()
+	view := m.render()
 	if !strings.Contains(view, "docs/") {
 		t.Error("directory should render with a trailing slash")
 	}
@@ -348,14 +349,14 @@ func TestSidebarMarksDirectories(t *testing.T) {
 	if !m.styles.dir.GetBold() {
 		t.Error("dir style should be bold")
 	}
-	if fg, ok := m.styles.dir.GetForeground().(lipgloss.Color); !ok || string(fg) != "#89B4FA" {
+	if hexOf(m.styles.dir.GetForeground()) != "#89B4FA" {
 		t.Errorf("dir style foreground = %v, want #89B4FA", m.styles.dir.GetForeground())
 	}
 }
 
 func TestUnfocusedCursorRowStyle(t *testing.T) {
 	m := testModel(t, map[string]string{"a.md": "# A"})
-	if fg, ok := m.styles.cursor.GetForeground().(lipgloss.Color); !ok || string(fg) != "#FFFFFF" {
+	if hexOf(m.styles.cursor.GetForeground()) != "#FFFFFF" {
 		t.Errorf("cursor style foreground = %v, want #FFFFFF (file color)", m.styles.cursor.GetForeground())
 	}
 	if !m.styles.cursor.GetBold() {
@@ -381,7 +382,7 @@ func TestWatchOffByDefault(t *testing.T) {
 	if m.Init() != nil {
 		t.Error("Init should have nothing to wait on without a watcher")
 	}
-	if strings.Contains(m.View(), "[WATCH]") {
+	if strings.Contains(m.render(), "[WATCH]") {
 		t.Error("status bar should not advertise watching when it is off")
 	}
 }
@@ -394,7 +395,7 @@ func TestWatchEnabledStartsWatching(t *testing.T) {
 	if m.Init() == nil {
 		t.Error("Init should wait for changes when watching")
 	}
-	if !strings.Contains(m.View(), "[WATCH]") {
+	if !strings.Contains(m.render(), "[WATCH]") {
 		t.Error("status bar should show that watching is on")
 	}
 }
@@ -425,7 +426,7 @@ func TestFileChangedMsgKeepsScrollPosition(t *testing.T) {
 	}
 	m := watchModel(t, map[string]string{"a.md": long.String()}, "a.md")
 	m.tabs[0].vp.SetYOffset(40)
-	want := m.tabs[0].vp.YOffset
+	want := m.tabs[0].vp.YOffset()
 	if want == 0 {
 		t.Fatal("setup: viewport did not scroll")
 	}
@@ -434,7 +435,7 @@ func TestFileChangedMsgKeepsScrollPosition(t *testing.T) {
 		t.Fatal(err)
 	}
 	m = update(t, m, fileChangedMsg{})
-	if got := m.tabs[0].vp.YOffset; got != want {
+	if got := m.tabs[0].vp.YOffset(); got != want {
 		t.Errorf("scroll offset = %d after reload, want %d", got, want)
 	}
 }
@@ -461,12 +462,12 @@ func TestReloadRefreshesBackgroundTabs(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	m = update(t, m, tea.KeyPressMsg{Code: 'r', Text: "r"})
 	if background.raw != "# A2" {
 		t.Errorf("background tab content = %q, want %q", background.raw, "# A2")
 	}
 
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyTab}) // back to a.md
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyTab}) // back to a.md
 	if !strings.Contains(m.tabs[m.active].vp.View(), "A2") {
 		t.Error("background tab was not re-rendered when it became active")
 	}
@@ -475,7 +476,7 @@ func TestReloadRefreshesBackgroundTabs(t *testing.T) {
 func TestQuitStopsTheWatcher(t *testing.T) {
 	m := watchModel(t, map[string]string{"a.md": "# A"}, "a.md")
 	events := m.watcher.Events()
-	update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	update(t, m, tea.KeyPressMsg{Code: 'q', Text: "q"})
 	select {
 	case _, ok := <-events:
 		if ok {
@@ -490,9 +491,9 @@ func TestQuitStopsTheWatcher(t *testing.T) {
 // directories expanded in the sidebar, and the parents of open files.
 func TestWatchCoversOpenFilesAndExpandedDirs(t *testing.T) {
 	m := watchModel(t, map[string]string{"docs/a.md": "# A", "top.md": "# T"})
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyEnter}) // expand docs/
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyDown})
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyEnter}) // open docs/a.md
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyEnter}) // expand docs/
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyDown})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyEnter}) // open docs/a.md
 	if len(m.tabs) != 1 {
 		t.Fatalf("setup: %d tabs, want 1", len(m.tabs))
 	}
@@ -659,7 +660,7 @@ func TestQuitClosesTheRemoteServer(t *testing.T) {
 		t.Error("Init should wait for remote commands when serving")
 	}
 
-	update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	update(t, m, tea.KeyPressMsg{Code: 'q', Text: "q"})
 	if _, err := os.Stat(srv.Path()); !os.IsNotExist(err) {
 		t.Errorf("socket left behind after quit (stat err = %v)", err)
 	}
@@ -734,7 +735,7 @@ func TestQuitStopsWatcherAndRemoteServerTogether(t *testing.T) {
 	}
 	events := m.watcher.Events()
 
-	update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	update(t, m, tea.KeyPressMsg{Code: 'q', Text: "q"})
 
 	if _, err := os.Stat(srv.Path()); !os.IsNotExist(err) {
 		t.Errorf("socket left behind after quit (stat err = %v)", err)
@@ -770,7 +771,7 @@ func TestFileContentCannotDriveTheTerminal(t *testing.T) {
 
 func TestSourceModeCannotDriveTheTerminal(t *testing.T) {
 	m := testModel(t, map[string]string{"a.md": "pwned " + osc52 + " more\n"}, "a.md")
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'m'}})
+	m = update(t, m, tea.KeyPressMsg{Code: 'm', Text: "m"})
 	if m.mode != modeSource {
 		t.Fatal("setup: not in source mode")
 	}
@@ -798,7 +799,7 @@ func TestReloadedContentCannotDriveTheTerminal(t *testing.T) {
 func TestFileNamesCannotDriveTheTerminal(t *testing.T) {
 	m := testModel(t, map[string]string{"evil\x1b]0;pwn\x07.md": "# hi\n"})
 
-	view := m.View()
+	view := m.render()
 	if strings.Contains(view, "\x1b]0;pwn") {
 		t.Error("a file name drove the terminal from the sidebar")
 	}
@@ -816,17 +817,17 @@ func TestStatusBarPathCannotDriveTheTerminal(t *testing.T) {
 
 func TestToggleLineNumbersInSourceMode(t *testing.T) {
 	m := testModel(t, map[string]string{"a.md": "one\ntwo\nthree\n"}, "a.md")
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'m'}}) // reader → source
-	if v := m.tabs[0].vp.View(); strings.Contains(v, "1 one") {
+	m = update(t, m, tea.KeyPressMsg{Code: 'm', Text: "m"}) // reader → source
+	if v := ansi.Strip(m.tabs[0].vp.View()); strings.Contains(v, "1 one") {
 		t.Fatalf("line numbers should be off by default:\n%s", v)
 	}
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
-	v := m.tabs[0].vp.View()
+	m = update(t, m, tea.KeyPressMsg{Code: 'n', Text: "n"})
+	v := ansi.Strip(m.tabs[0].vp.View())
 	if !strings.Contains(v, "1 one") || !strings.Contains(v, "3 three") {
 		t.Errorf("source mode should number lines after toggle:\n%s", v)
 	}
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
-	if v := m.tabs[0].vp.View(); strings.Contains(v, "1 one") {
+	m = update(t, m, tea.KeyPressMsg{Code: 'n', Text: "n"})
+	if v := ansi.Strip(m.tabs[0].vp.View()); strings.Contains(v, "1 one") {
 		t.Errorf("line numbers should toggle back off:\n%s", v)
 	}
 }
@@ -836,8 +837,8 @@ func TestLineNumbersOnPlainTextFile(t *testing.T) {
 	cfg.Theme.Style = "notty"
 	cfg.Sidebar.ShowAllFiles = true
 	m := testModelWithConfig(t, cfg, map[string]string{"notes.txt": "alpha\nbeta\n"}, "notes.txt")
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
-	v := m.tabs[0].vp.View()
+	m = update(t, m, tea.KeyPressMsg{Code: 'n', Text: "n"})
+	v := ansi.Strip(m.tabs[0].vp.View())
 	if !strings.Contains(v, "1 alpha") || !strings.Contains(v, "2 beta") {
 		t.Errorf("text files render as source, so numbers apply without a mode toggle:\n%s", v)
 	}
@@ -846,7 +847,7 @@ func TestLineNumbersOnPlainTextFile(t *testing.T) {
 func TestLineNumbersLeaveReaderModeAlone(t *testing.T) {
 	m := testModel(t, map[string]string{"a.md": "# Title\n\nbody\n"}, "a.md")
 	before := m.tabs[0].vp.View()
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	m = update(t, m, tea.KeyPressMsg{Code: 'n', Text: "n"})
 	if after := m.tabs[0].vp.View(); after != before {
 		t.Errorf("reader mode must not change when line numbers toggle:\nbefore:\n%s\nafter:\n%s", before, after)
 	}
@@ -856,8 +857,8 @@ func TestLineNumbersCoexistWithHighlighting(t *testing.T) {
 	m := testModel(t, map[string]string{"doc.md": "# Title\n\ntext\n"}, "doc.md")
 	m.sourceStyle = "catppuccin-mocha"
 	m.formatter = "terminal16m"
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'m'}})
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	m = update(t, m, tea.KeyPressMsg{Code: 'm', Text: "m"})
+	m = update(t, m, tea.KeyPressMsg{Code: 'n', Text: "n"})
 	v := m.tabs[0].vp.View()
 	if !strings.Contains(v, "\x1b[") {
 		t.Error("highlighting should survive line numbering")
@@ -905,11 +906,11 @@ func TestSwitchTabFollowsInSidebar(t *testing.T) {
 	if got := cursorName(m); got != "two.md" {
 		t.Fatalf("cursor = %q, want two.md (last opened)", got)
 	}
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyTab})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyTab})
 	if got := cursorName(m); got != "one.md" {
 		t.Errorf("cursor = %q, want one.md after tab switch", got)
 	}
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyTab})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyTab})
 	if got := cursorName(m); got != "two.md" {
 		t.Errorf("cursor = %q, want two.md after switching back", got)
 	}
@@ -958,7 +959,18 @@ func TestRevealOutsideRootLeavesSidebarAlone(t *testing.T) {
 func TestHelpListsSettingsKey(t *testing.T) {
 	m := testModel(t, map[string]string{"a.md": "# A"})
 	m = update(t, m, keyRune('?'))
-	if v := m.View(); !strings.Contains(v, "settings") {
+	if v := m.render(); !strings.Contains(v, "settings") {
 		t.Errorf("help should list the settings key:\n%s", v)
 	}
+}
+
+// hexOf writes a style color as #RRGGBB, or "" for an unset one.
+// Lip Gloss v2 colors are image/color values, not strings, so a test
+// that wants to name a color compares its channels.
+func hexOf(c color.Color) string {
+	if c == nil {
+		return ""
+	}
+	r, g, b, _ := c.RGBA()
+	return fmt.Sprintf("#%02X%02X%02X", r>>8, g>>8, b>>8)
 }

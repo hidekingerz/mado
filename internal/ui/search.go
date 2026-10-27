@@ -8,9 +8,9 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/charmbracelet/bubbles/key"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/key"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/hidekingerz/mado/internal/filetree"
@@ -132,8 +132,8 @@ func (m *Model) handleSearchResult(msg searchResultMsg) {
 // handleSearchKey edits the query or moves through the results. Keys
 // that type a character go to the query, so only keys that cannot be
 // typed act on the panel.
-func (m Model) handleSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if msg.Type != tea.KeyRunes && msg.Type != tea.KeySpace {
+func (m Model) handleSearchKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if msg.Text == "" {
 		switch {
 		case key.Matches(msg, m.keys.Search):
 			return m, m.openSearch(search.Names)
@@ -141,24 +141,24 @@ func (m Model) handleSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, m.openSearch(search.Contents)
 		}
 	}
-	switch msg.Type {
-	case tea.KeyEsc:
+	switch msg.String() {
+	case "esc":
 		m.closeSearch()
-	case tea.KeyEnter:
+	case "enter":
 		m.openSearchResult()
-	case tea.KeyUp, tea.KeyCtrlP:
+	case "up", "ctrl+p":
 		m.moveSearchCursor(-1)
-	case tea.KeyDown, tea.KeyCtrlN:
+	case "down", "ctrl+n":
 		m.moveSearchCursor(1)
-	case tea.KeyPgUp:
+	case "pgup":
 		m.moveSearchCursor(-maxInt(m.searchListHeight(), 1))
-	case tea.KeyPgDown:
+	case "pgdown":
 		m.moveSearchCursor(maxInt(m.searchListHeight(), 1))
-	case tea.KeyHome:
+	case "home":
 		m.moveSearchCursor(-len(m.search.results))
-	case tea.KeyEnd:
+	case "end":
 		m.moveSearchCursor(len(m.search.results))
-	case tea.KeyTab:
+	case "tab":
 		return m, m.openSearch(m.search.target.Toggle())
 	default:
 		if next, ok := editPrompt(m.search.query, msg); ok && next != m.search.query {
@@ -171,18 +171,18 @@ func (m Model) handleSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // editPrompt applies one editing key to a prompt's text: backspace
 // removes a rune, ctrl+w a word, ctrl+u everything; space and typed
-// characters (control characters dropped, alt-combinations ignored)
-// are appended. It reports whether msg was such a key, so callers can
-// treat every other key as a command.
-func editPrompt(s string, msg tea.KeyMsg) (string, bool) {
-	switch msg.Type {
-	case tea.KeyBackspace:
+// characters (alt-combinations ignored) are appended. It reports
+// whether msg was such a key, so callers can treat every other key as
+// a command.
+func editPrompt(s string, msg tea.KeyPressMsg) (string, bool) {
+	switch msg.String() {
+	case "backspace":
 		if s != "" {
 			_, size := utf8.DecodeLastRuneInString(s)
 			s = s[:len(s)-size]
 		}
 		return s, true
-	case tea.KeyCtrlW:
+	case "ctrl+w":
 		q := strings.TrimRightFunc(s, unicode.IsSpace)
 		if i := strings.LastIndexFunc(q, unicode.IsSpace); i >= 0 {
 			q = q[:i+1]
@@ -190,59 +190,75 @@ func editPrompt(s string, msg tea.KeyMsg) (string, bool) {
 			q = ""
 		}
 		return q, true
-	case tea.KeyCtrlU:
+	case "ctrl+u":
 		return "", true
-	case tea.KeySpace:
-		return s + " ", true
-	case tea.KeyRunes:
-		if msg.Alt {
-			return s, true
-		}
-		var b strings.Builder
-		for _, r := range msg.Runes {
-			// A pasted newline or escape has no place in a value.
-			if !unicode.IsControl(r) {
-				b.WriteRune(r)
-			}
-		}
-		if b.Len() > 0 {
-			s += b.String()
-		}
+	}
+	if msg.Text == "" {
+		return s, false
+	}
+	if msg.Mod.Contains(tea.ModAlt) {
 		return s, true
 	}
-	return s, false
+	return appendText(s, msg.Text), true
+}
+
+// appendText adds typed or pasted text to a prompt's value, dropping
+// control characters: a pasted newline or escape has no place in a
+// value.
+func appendText(s, text string) string {
+	var b strings.Builder
+	for _, r := range text {
+		if !unicode.IsControl(r) {
+			b.WriteRune(r)
+		}
+	}
+	return s + b.String()
+}
+
+// handlePaste puts pasted text into whichever prompt has the keyboard.
+// With no prompt open, a paste is not something mado acts on.
+func (m Model) handlePaste(content string) (tea.Model, tea.Cmd) {
+	switch {
+	case m.settings.open:
+		if m.settings.editing == editText {
+			m.settings.input = appendText(m.settings.input, content)
+		}
+	case m.search.open:
+		if next := appendText(m.search.query, content); next != m.search.query {
+			m.search.query = next
+			return m, m.runSearch()
+		}
+	}
+	return m, nil
 }
 
 // handleSearchMouse scrolls or picks from the result list. Clicks
 // outside the panel close it and act as they would without it.
 func (m Model) handleSearchMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
-	inSidebar := m.sidebar && msg.X < m.sidebarWidth()
-	switch msg.Button {
-	case tea.MouseButtonWheelUp:
-		if inSidebar {
-			m.scrollTree(-wheelStep)
-		} else {
-			m.scrollSearch(-wheelStep)
+	at := msg.Mouse()
+	inSidebar := m.sidebar && at.X < m.sidebarWidth()
+	switch msg := msg.(type) {
+	case tea.MouseWheelMsg:
+		if step, ok := wheelStepOf(msg); ok {
+			if inSidebar {
+				m.scrollTree(step)
+			} else {
+				m.scrollSearch(step)
+			}
 		}
-	case tea.MouseButtonWheelDown:
-		if inSidebar {
-			m.scrollTree(wheelStep)
-		} else {
-			m.scrollSearch(wheelStep)
-		}
-	case tea.MouseButtonLeft:
-		if msg.Action != tea.MouseActionPress {
+	case tea.MouseClickMsg:
+		if msg.Button != tea.MouseLeft {
 			return m, nil
 		}
 		switch {
-		case msg.Y < tabBarHeight:
+		case at.Y < tabBarHeight:
 			m.closeSearch()
-			m.clickTabBar(msg.X)
+			m.clickTabBar(at.X)
 		case inSidebar:
 			m.closeSearch()
-			m.clickSidebar(msg.X, msg.Y)
+			m.clickSidebar(at.X, at.Y)
 		default:
-			row := msg.Y - tabBarHeight - 1 - searchHeaderRows
+			row := at.Y - tabBarHeight - 1 - searchHeaderRows
 			idx := m.search.off + row
 			if row >= 0 && idx < len(m.search.results) {
 				m.search.cursor = idx
@@ -329,7 +345,7 @@ func (m *Model) scrollToMatch(t *tab, r search.Match, query string) {
 	}
 	var row int
 	if m.mode == modeSource || !filetree.IsMarkdown(t.path) {
-		row = sourceRow(t.raw, r.Line, t.vp.Width-2, m.showLineNums)
+		row = sourceRow(t.raw, r.Line, t.vp.Width()-2, m.showLineNums)
 	} else {
 		row = readerRow(t.raw, t.content, r.Line, query)
 	}

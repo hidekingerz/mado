@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/sirupsen/logrus"
 
 	"github.com/hidekingerz/mado/internal/config"
@@ -127,7 +127,7 @@ func TestReaderModeNeverWrapsADrawnDiagram(t *testing.T) {
 	// glamour intact, one drawn line per rendered line.
 	d := drawnWidth(t)
 	m := testModel(t, map[string]string{"a.md": mermaidDoc}, "a.md")
-	m = update(t, m, tea.KeyMsg{Type: tea.KeyCtrlB}) // hide the sidebar: content = full width
+	m = update(t, m, tea.KeyPressMsg{Code: 'b', Mod: tea.ModCtrl}) // hide the sidebar: content = full width
 	m = update(t, m, tea.WindowSizeMsg{Width: d + 10, Height: 40})
 	c := m.tabs[0].content
 	if !strings.Contains(c, "┌") {

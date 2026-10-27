@@ -5,13 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"image/color"
 	_ "image/gif" // register stdlib decoders for image.Decode
 	_ "image/jpeg"
 	_ "image/png"
 	"path/filepath"
 	"strings"
 
-	"github.com/muesli/termenv"
+	"github.com/charmbracelet/colorprofile"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // maxImagePixels caps the declared width*height of an image before mado
@@ -63,7 +65,7 @@ func decodeImage(data []byte) (image.Image, error) {
 // maxW columns × maxH rows, preserving aspect ratio. Colors are
 // rendered for the given profile, so output is deterministic in tests.
 // Returns "" when the pane cannot hold an image.
-func renderImage(img image.Image, maxW, maxH int, profile termenv.Profile) string {
+func renderImage(img image.Image, maxW, maxH int, profile colorprofile.Profile) string {
 	if maxW < 2 || maxH < 1 {
 		return ""
 	}
@@ -87,10 +89,10 @@ func renderImage(img image.Image, maxW, maxH int, profile termenv.Profile) strin
 		th = 1
 	}
 
-	sample := func(x, y int) termenv.Color {
+	sample := func(x, y int) color.Color {
 		sx := b.Min.X + x*w/tw
 		sy := b.Min.Y + y*h/th
-		return profile.FromColor(img.At(sx, sy))
+		return profile.Convert(img.At(sx, sy))
 	}
 
 	var sb strings.Builder
@@ -99,11 +101,11 @@ func renderImage(img image.Image, maxW, maxH int, profile termenv.Profile) strin
 			sb.WriteString("\n")
 		}
 		for x := 0; x < tw; x++ {
-			cell := profile.String("▀").Foreground(sample(x, y))
+			cell := ansi.Style{}.ForegroundColor(sample(x, y))
 			if y+1 < th {
-				cell = cell.Background(sample(x, y+1))
+				cell = cell.BackgroundColor(sample(x, y+1))
 			}
-			sb.WriteString(cell.String())
+			sb.WriteString(cell.Styled("▀"))
 		}
 	}
 	return sb.String()
