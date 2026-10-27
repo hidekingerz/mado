@@ -1,6 +1,6 @@
 module github.com/hidekingerz/mado
 
-go 1.26.0
+go 1.26.10
 
 require (
 	github.com/AlexanderGrooff/mermaid-ascii v0.0.0-20261019220251-5a9df1560871
