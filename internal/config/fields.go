@@ -235,6 +235,7 @@ func keyActions() []keyAction {
 		{"reload", "Reload tree and file", func(c *Config) *[]string { return &c.Keys.Reload }},
 		{"toggle_mode", "Reader / source mode", func(c *Config) *[]string { return &c.Keys.ToggleMode }},
 		{"toggle_all_files", "All files / markdown only", func(c *Config) *[]string { return &c.Keys.ToggleAllFiles }},
+		{"toggle_hidden", "Show / hide dotfiles", func(c *Config) *[]string { return &c.Keys.ToggleHidden }},
 		{"toggle_line_numbers", "Line numbers in source view", func(c *Config) *[]string { return &c.Keys.ToggleLineNums }},
 		{"search", "Search file names", func(c *Config) *[]string { return &c.Keys.Search }},
 		{"search_content", "Search file contents", func(c *Config) *[]string { return &c.Keys.SearchContent }},

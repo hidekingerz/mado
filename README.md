@@ -23,7 +23,7 @@ to help you find your way around.
 
 ### Finding your way
 
-- **Sidebar file tree** rooted at the current directory (lazy-loaded, collapsible; `a` toggles between markdown-only and all files). The tree follows the file being viewed: opening a file or switching tabs expands its directories and moves the cursor onto it
+- **Sidebar file tree** rooted at the current directory (lazy-loaded, collapsible; `a` toggles between markdown-only and all files, `.` shows or hides dotfiles). The tree follows the file being viewed: opening a file or switching tabs expands its directories and moves the cursor onto it
 - **Multiple open files** — each file opens in its own tab
 - **File search** — `/` finds files by name, `ctrl+f` by content, as you type; a content hit opens the file scrolled to its line. Directories such as `node_modules` are skipped, and the list is configurable
 - **Mouse support** — click files to open, click tabs to switch, click `✕` to close, scroll wheel in both panes
@@ -124,7 +124,8 @@ Matching is a plain substring — case-insensitive unless the query
 contains an upper-case letter, and against the path relative to the
 root, so `docs/plan` narrows by directory as well as name. The search
 sees what the sidebar could show: markdown files only unless `a` has
-switched to all files, and no dotfiles unless `show_hidden` is on.
+switched to all files, and no dotfiles unless `.` or `show_hidden` has
+turned them on.
 Binary files and files over 8 MB are skipped for content search, and
 the list stops at 1000 hits.
 
@@ -259,6 +260,7 @@ is refused with a note in the status bar and nothing changes.
 | `r`/`F5`           | reload tree and current file    |
 | `m`                | toggle reader / source mode     |
 | `a`                | show all files / markdown only  |
+| `.`                | show / hide dotfiles            |
 | `n`                | toggle line numbers (source)    |
 | `/`                | search file names               |
 | `ctrl+f`           | search file contents            |

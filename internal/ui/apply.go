@@ -64,9 +64,10 @@ func (m *Model) applyConfig(next config.Config) tea.Cmd {
 		m.ensureRendered(m.activeTab())
 	}
 	// treeOpts fields are compared and overwritten individually, not
-	// wholesale on any Sidebar change: ShowAllFiles can also be flipped
-	// at runtime by the "a" key without touching m.cfg, and a config
-	// change to a sibling field like Width must not revert that.
+	// wholesale on any Sidebar change: ShowAllFiles and ShowHidden can
+	// also be flipped at runtime by the "a" and "." keys without touching
+	// m.cfg, and a config change to a sibling field like Width must not
+	// revert that.
 	treeChanged := false
 	if next.Sidebar.ShowAllFiles != prev.Sidebar.ShowAllFiles {
 		m.treeOpts.ShowAllFiles = next.Sidebar.ShowAllFiles

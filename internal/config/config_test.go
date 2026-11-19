@@ -82,6 +82,24 @@ func TestSourceStyleKey(t *testing.T) {
 	}
 }
 
+func TestToggleHiddenKey(t *testing.T) {
+	if got := Default().Keys.ToggleHidden; len(got) != 1 || got[0] != "." {
+		t.Errorf("default ToggleHidden = %v, want [.]", got)
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+	if err := os.WriteFile(path, []byte("[keys]\ntoggle_hidden = [\"H\"]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Keys.ToggleHidden) != 1 || cfg.Keys.ToggleHidden[0] != "H" {
+		t.Errorf("ToggleHidden = %v, want [H]", cfg.Keys.ToggleHidden)
+	}
+}
+
 func TestToggleAllFilesKey(t *testing.T) {
 	if got := Default().Keys.ToggleAllFiles; len(got) != 1 || got[0] != "a" {
 		t.Errorf("default ToggleAllFiles = %v, want [a]", got)

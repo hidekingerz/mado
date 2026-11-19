@@ -23,6 +23,7 @@ type keyMap struct {
 	Reload         key.Binding
 	ToggleMode     key.Binding
 	ToggleAllFiles key.Binding
+	ToggleHidden   key.Binding
 	ToggleLineNums key.Binding
 	Search         key.Binding
 	SearchContent  key.Binding
@@ -52,6 +53,7 @@ func newKeyMap(k config.Keys) keyMap {
 		Reload:         bind(k.Reload, "reload"),
 		ToggleMode:     bind(k.ToggleMode, "reader/source mode"),
 		ToggleAllFiles: bind(k.ToggleAllFiles, "all files / markdown only"),
+		ToggleHidden:   bind(k.ToggleHidden, "show / hide dotfiles"),
 		ToggleLineNums: bind(k.ToggleLineNums, "line numbers"),
 		Search:         bind(k.Search, "search file names"),
 		SearchContent:  bind(k.SearchContent, "search file contents"),

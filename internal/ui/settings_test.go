@@ -109,7 +109,9 @@ func TestSettingsCursorSkipsHeadings(t *testing.T) {
 	if got := selectedField(m); got != "help" {
 		t.Errorf("end should reach the last field, got %q", got)
 	}
-	if !strings.Contains(m.render(), "[keys]") {
+	// The [keys] table is taller than the panel, so the help row is only
+	// drawn if the list scrolled down to it.
+	if !strings.Contains(ansi.Strip(m.render()), " help ") {
 		t.Error("the list should scroll to keep the cursor in view")
 	}
 	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyHome})

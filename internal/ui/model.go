@@ -480,6 +480,9 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, k.ToggleAllFiles):
 		m.treeOpts.ShowAllFiles = !m.treeOpts.ShowAllFiles
 		m.reloadTree()
+	case key.Matches(msg, k.ToggleHidden):
+		m.treeOpts.ShowHidden = !m.treeOpts.ShowHidden
+		m.reloadTree()
 	case key.Matches(msg, k.ToggleLineNums):
 		m.showLineNums = !m.showLineNums
 		m.ensureRendered(m.activeTab())
