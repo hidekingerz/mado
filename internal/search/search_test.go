@@ -53,9 +53,13 @@ func TestNamesMatchRelativePathIgnoringCase(t *testing.T) {
 }
 
 func TestNamesSmartCase(t *testing.T) {
-	root := writeTree(t, map[string]string{"Plan.md": "", "plan.md": "", "x/PLAN.md": ""})
+	// Each case-variant lives in its own directory: on a case-insensitive
+	// filesystem (APFS's default, NTFS) Plan.md and plan.md in one directory
+	// are the same file, and which spelling survives depends on write order,
+	// so the test flaked with -count (#34).
+	root := writeTree(t, map[string]string{"top/Plan.md": "", "lower/plan.md": "", "x/PLAN.md": ""})
 	res := Run(context.Background(), root, Names, "Plan", Options{})
-	if got := strings.Join(rels(res.Matches), " "); got != "Plan.md" {
+	if got := strings.Join(rels(res.Matches), " "); got != "top/Plan.md" {
 		t.Errorf("upper-case query should be exact: %q", got)
 	}
 }
