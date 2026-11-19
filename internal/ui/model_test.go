@@ -261,6 +261,29 @@ func TestToggleAllFilesShowsNonMarkdown(t *testing.T) {
 	}
 }
 
+func TestToggleHiddenShowsDotfiles(t *testing.T) {
+	m := testModel(t, map[string]string{"a.md": "# A", ".notes.md": "# N", ".claude/memo.md": "# M"})
+	has := func(name string) bool {
+		for _, it := range m.items {
+			if it.Node.Name == name {
+				return true
+			}
+		}
+		return false
+	}
+	if has(".notes.md") || has(".claude") {
+		t.Fatal("dotfiles and dot-directories should be hidden by default")
+	}
+	m = update(t, m, tea.KeyPressMsg{Code: '.', Text: "."})
+	if !has(".notes.md") || !has(".claude") {
+		t.Fatal("dotfiles and dot-directories should appear after toggle")
+	}
+	m = update(t, m, tea.KeyPressMsg{Code: '.', Text: "."})
+	if has(".notes.md") || has(".claude") {
+		t.Fatal("dotfiles should be hidden again after second toggle")
+	}
+}
+
 func TestToggleAllFilesKeepsExpansion(t *testing.T) {
 	m := testModel(t, map[string]string{"docs/a.md": "# A", "b.md": "# B", "main.go": "package main\n"})
 	// Directories sort first: cursor 0 is docs. Enter expands it.

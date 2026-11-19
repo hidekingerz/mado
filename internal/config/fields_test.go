@@ -246,7 +246,7 @@ func TestKeysFieldsCoverEveryAction(t *testing.T) {
 	want := []string{
 		"quit", "up", "down", "open", "back", "close_tab", "next_tab", "prev_tab",
 		"toggle_sidebar", "half_page_down", "half_page_up", "top", "bottom", "reload",
-		"toggle_mode", "toggle_all_files", "toggle_line_numbers", "search", "search_content",
+		"toggle_mode", "toggle_all_files", "toggle_hidden", "toggle_line_numbers", "search", "search_content",
 		"settings", "help",
 	}
 	var got []string
