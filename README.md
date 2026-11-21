@@ -135,6 +135,8 @@ Directories that are never worth searching are left out through
 matches a name at any depth (`node_modules`, `*.log`); one with a
 slash matches a path relative to the root (`docs/drafts`). Setting the
 key replaces the default list, so `exclude = []` searches everything.
+The sidebar leaves out the same entries, so `.git` stays hidden even
+when dotfiles are shown.
 
 ### Mouse
 

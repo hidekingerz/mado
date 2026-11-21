@@ -50,7 +50,7 @@ show_hidden = false    # show dotfiles / dot-directories
 # Setting this key replaces the default list; exclude = [] searches
 # everything. The search otherwise follows the sidebar's filter:
 # markdown only unless all files are shown, no dotfiles unless
-# show_hidden is on.
+# show_hidden is on. The sidebar hides the same entries.
 exclude = ["node_modules", ".git", "vendor", "dist", "build", "target"]
 
 [keys]

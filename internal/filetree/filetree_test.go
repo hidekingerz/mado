@@ -328,3 +328,52 @@ func TestRevealMissingAncestorStopsQuietly(t *testing.T) {
 		t.Error("docs should be expanded before the walk stops")
 	}
 }
+
+// The sidebar leaves out what search excludes, so the two agree on
+// what is in the project (#47).
+func TestExcludeHidesMatchingEntries(t *testing.T) {
+	dir := makeTree(t)
+	for _, rel := range []string{".git/config", "docs/node_modules/x.md", "docs/drafts/a.md"} {
+		p := filepath.Join(dir, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	opts := Options{ShowAllFiles: true, ShowHidden: true, Exclude: []string{".git", "node_modules", "docs/drafts"}}
+	root, err := New(dir, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var docs *Node
+	for _, c := range root.Children {
+		if c.Name == ".git" {
+			t.Error(".git should be excluded")
+		}
+		if c.Name == "docs" {
+			docs = c
+		}
+	}
+	if err := docs.Toggle(opts); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range docs.Children {
+		if c.Name == "node_modules" || c.Name == "drafts" {
+			t.Errorf("docs/%s should be excluded", c.Name)
+		}
+	}
+	if !contains(names(Flatten(root)), ".hidden.md") {
+		t.Error("other dotfiles should still show")
+	}
+}
+
+func contains(xs []string, s string) bool {
+	for _, x := range xs {
+		if x == s {
+			return true
+		}
+	}
+	return false
+}
