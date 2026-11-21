@@ -100,6 +100,7 @@ func (t *tab) setContent(data []byte, profile colorprofile.Profile) {
 // tabRegion records where a tab was drawn in the tab bar, for mouse
 // hit-testing. closeX is the column of the ✕ glyph.
 type tabRegion struct {
+	index      int // the tab this span belongs to
 	start, end int
 	closeX     int
 }
@@ -130,9 +131,8 @@ type Model struct {
 	showHelp     bool
 	statusMsg    string
 
-	tabs       []*tab
-	active     int
-	tabRegions []tabRegion
+	tabs   []*tab
+	active int
 
 	// search is the find-by-name / find-in-files panel.
 	search searchState
@@ -546,22 +546,38 @@ func wheelStepOf(msg tea.MouseWheelMsg) (int, bool) {
 	return 0, false
 }
 
-// clickTabBar activates or closes the tab under column x.
+// clickTabBar activates or closes the tab under column x. A click on
+// a hidden-tabs marker brings the next hidden tab on that side into
+// view.
 func (m *Model) clickTabBar(x int) {
-	for i, r := range m.tabRegions {
+	l := m.layoutTabBar()
+	switch {
+	case l.left != "" && x < lipgloss.Width(l.left):
+		m.activateTab(l.first - 1)
+		return
+	case l.right != "" && x >= l.rightStart:
+		m.activateTab(l.last + 1)
+		return
+	}
+	for _, r := range l.regions {
 		if x < r.start || x >= r.end {
 			continue
 		}
 		if x == r.closeX {
-			m.closeTab(i)
+			m.closeTab(r.index)
 		} else {
-			m.active = i
-			m.focus = focusContent
-			m.ensureRendered(m.activeTab())
-			m.revealInSidebar(m.activeTab().path)
+			m.activateTab(r.index)
 		}
 		return
 	}
+}
+
+// activateTab makes tab i the active one and gives it the keyboard.
+func (m *Model) activateTab(i int) {
+	m.active = i
+	m.focus = focusContent
+	m.ensureRendered(m.activeTab())
+	m.revealInSidebar(m.activeTab().path)
 }
 
 // clickSidebar selects the tree row under (x, y); a second effect
@@ -943,7 +959,6 @@ func (m *Model) layoutTabs() {
 		t.rendered = 0
 		m.ensureRendered(t)
 	}
-	m.computeTabRegions()
 	m.clampTree()
 	m.scrollCursorIntoView()
 	m.clampSearch()

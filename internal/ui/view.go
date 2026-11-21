@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -47,27 +48,77 @@ func (m Model) render() string {
 
 // ── tab bar ─────────────────────────────────────────────────────────
 
-// tabLabel returns the printable label for tab i. Regions computed in
-// computeTabRegions must match this layout exactly.
+// tabLabel returns the printable label for tab i.
 func (m Model) tabLabel(i int) string {
 	return " " + truncate(m.tabs[i].title, maxTabTitleWidth) + " ✕ "
 }
 
-// computeTabRegions records the column span of every tab for mouse
-// hit-testing. Called whenever tabs or geometry change.
-func (m *Model) computeTabRegions() {
-	m.tabRegions = m.tabRegions[:0]
-	x := 0
+// tabBarLayout is the tab bar as drawn. When the tabs are wider than
+// the terminal it shows a run of them that always includes the active
+// one, with markers counting the tabs hidden on each side. Drawing and
+// mouse hit-testing both use it, so a click lands on the tab under the
+// pointer.
+type tabBarLayout struct {
+	first, last int         // the tabs shown, inclusive
+	left, right string      // "‹ 3 " and " 2 ›", or "" when none are hidden
+	rightStart  int         // column where the right marker begins
+	regions     []tabRegion // screen spans of tabs first..last
+}
+
+func (m Model) layoutTabBar() tabBarLayout {
+	n := len(m.tabs)
+	l := tabBarLayout{last: n - 1}
+	if n == 0 {
+		return l
+	}
+	widths := make([]int, n)
+	total := 0
 	for i := range m.tabs {
-		label := m.tabLabel(i)
-		w := lipgloss.Width(label)
-		m.tabRegions = append(m.tabRegions, tabRegion{
-			start:  x,
-			end:    x + w,
-			closeX: x + w - 2,
-		})
+		widths[i] = lipgloss.Width(m.tabLabel(i))
+		total += widths[i]
+	}
+	if m.width > 0 && total > m.width {
+		avail := m.width - 2*(len(strconv.Itoa(n))+3) // room left by both markers
+		// Keep the bar anchored at the first tab while the active one
+		// fits from there; otherwise end the run at the active tab and
+		// fill what room is left with the tabs on either side.
+		l.first, l.last = 0, -1
+		used := 0
+		for l.last+1 < n && used+widths[l.last+1] <= avail {
+			l.last++
+			used += widths[l.last]
+		}
+		if l.last < m.active {
+			l.first, l.last, used = m.active, m.active, widths[m.active]
+			for l.first > 0 && used+widths[l.first-1] <= avail {
+				l.first--
+				used += widths[l.first]
+			}
+			for l.last+1 < n && used+widths[l.last+1] <= avail {
+				l.last++
+				used += widths[l.last]
+			}
+		}
+		if l.first > 0 {
+			l.left = fmt.Sprintf("‹ %d ", l.first)
+		}
+		if l.last < n-1 {
+			l.right = fmt.Sprintf(" %d ›", n-1-l.last)
+			l.rightStart = m.width - lipgloss.Width(l.right)
+		}
+	}
+	x := lipgloss.Width(l.left)
+	for i := l.first; i <= l.last; i++ {
+		w := widths[i]
+		l.regions = append(l.regions, tabRegion{index: i, start: x, end: x + w, closeX: x + w - 2})
 		x += w
 	}
+	return l
+}
+
+// tabRegions returns the column span of every tab on screen.
+func (m Model) tabRegions() []tabRegion {
+	return m.layoutTabBar().regions
 }
 
 func (m Model) renderTabBar() string {
@@ -76,16 +127,23 @@ func (m Model) renderTabBar() string {
 			m.styles.dimmed.Render(" tui markdown viewer")
 		return padLine(title, m.width)
 	}
-	var parts []string
-	for i := range m.tabs {
+	l := m.layoutTabBar()
+	var b strings.Builder
+	b.WriteString(m.styles.dimmed.Render(l.left))
+	for i := l.first; i <= l.last; i++ {
 		label := m.tabLabel(i)
 		if i == m.active {
-			parts = append(parts, m.styles.tabActive.Render(label))
+			b.WriteString(m.styles.tabActive.Render(label))
 		} else {
-			parts = append(parts, m.styles.tabInactive.Render(label))
+			b.WriteString(m.styles.tabInactive.Render(label))
 		}
 	}
-	return padLine(strings.Join(parts, ""), m.width)
+	line := b.String()
+	if l.right != "" {
+		line = padLine(line, l.rightStart) + m.styles.dimmed.Render(l.right)
+	}
+	// The active tab alone can be wider than a very narrow terminal.
+	return padLine(clip(line, m.width), m.width)
 }
 
 // ── sidebar ─────────────────────────────────────────────────────────
