@@ -129,7 +129,8 @@ type Model struct {
 	sourceStyle  string               // chroma style for source mode; "" = no highlighting
 	formatter    string               // chroma formatter; pinned at startup, "" = no color
 	profile      colorprofile.Profile // terminal color capability, pinned at startup
-	darkBG       bool                 // terminal background, pinned at startup like profile
+	darkBG       bool                 // terminal background; assumed dark until asked
+	bgKnown      bool                 // darkBG came from the terminal
 	configPath   string               // where the settings panel saves; "" = nowhere
 	showLineNums bool                 // vi :set nu for source-rendered content
 	showHelp     bool
@@ -184,8 +185,16 @@ func New(cfg config.Config, rootDir string, initialFiles []string) (Model, error
 	if cfg.Theme.DefaultMode == "source" {
 		mode = modeSource
 	}
-	darkBG := lipgloss.HasDarkBackground(os.Stdin, os.Stdout)
+	// Asking the terminal for its background puts the tty in raw mode
+	// and waits for a reply, so it is done only when a setting depends
+	// on the answer. Otherwise dark is assumed, and switching to such a
+	// setting later asks then (see applyConfig).
+	darkBG, bgKnown := true, false
+	if needsBackground(cfg.Theme) {
+		darkBG, bgKnown = lipgloss.HasDarkBackground(os.Stdin, os.Stdout), true
+	}
 	style := resolveStyle(cfg.Theme.Style, darkBG)
+	profile := colorprofile.Detect(os.Stdout, os.Environ())
 	m := Model{
 		cfg:         cfg,
 		keys:        newKeyMap(cfg.Keys),
@@ -196,9 +205,10 @@ func New(cfg config.Config, rootDir string, initialFiles []string) (Model, error
 		mode:        mode,
 		style:       style,
 		sourceStyle: chromaStyleName(style, cfg.Theme.SourceStyle, darkBG),
-		formatter:   chromaFormatterName(),
-		profile:     colorprofile.Detect(os.Stdout, os.Environ()),
+		formatter:   chromaFormatterFor(profile),
+		profile:     profile,
 		darkBG:      darkBG,
+		bgKnown:     bgKnown,
 		styles:      newStyles(cfg.Theme),
 	}
 	m.items = filetree.Flatten(m.root)
@@ -342,6 +352,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		m.layoutTabs()
+		return m, nil
+	case tea.BackgroundColorMsg:
+		m.setBackground(msg.IsDark())
 		return m, nil
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
