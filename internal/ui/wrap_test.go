@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
@@ -228,5 +229,54 @@ func TestWrapTextKeepsAStyledWordWhole(t *testing.T) {
 	}
 	if strings.Join(vis, "|") != "abcde|fghij|kl" {
 		t.Errorf("an overlong styled word splits by visible columns, got %q", vis)
+	}
+}
+
+// Glamour v2 writes links as OSC 8 hyperlinks, whose parameters carry
+// the URL. The sequence takes no columns, so folding must neither
+// count it nor cut through it (#40).
+func TestWrapKeepsHyperlinksWhole(t *testing.T) {
+	const url = "https://github.com/charmbracelet/bubbletea"
+	link := "\x1b]8;id=1;" + url + "\x1b\\Bubble Tea\x1b]8;;\x1b\\"
+	bel := "\x1b]8;;" + url + "\x07Glamour\x1b]8;;\x07"
+	for name, line := range map[string]string{
+		"ST":  "written in Go on " + link + " and more words after it",
+		"BEL": "written in Go on " + bel + " and more words after it",
+	} {
+		t.Run(name, func(t *testing.T) {
+			for _, got := range []string{wrapText(line, 20), hardWrapLines("  "+line, 20)} {
+				for _, row := range strings.Split(got, "\n") {
+					if w := ansi.StringWidth(row); w > 20 {
+						t.Errorf("row is %d columns: %q", w, row)
+					}
+					if strings.Contains(ansi.Strip(row), "github.com") {
+						t.Errorf("URL leaked into the visible text: %q", ansi.Strip(row))
+					}
+				}
+				if !strings.Contains(got, url) {
+					t.Errorf("hyperlink sequence was cut: %q", got)
+				}
+			}
+		})
+	}
+}
+
+func TestReaderModeLinksFitNarrowPane(t *testing.T) {
+	src := "mado is written in Go on [Bubble Tea](https://github.com/charmbracelet/bubbletea) and [Glamour](https://github.com/charmbracelet/glamour). It renders the files as you browse them.\n"
+	m := testModel(t, map[string]string{"a.md": src}, "a.md")
+	m = update(t, m, tea.WindowSizeMsg{Width: 80, Height: 24})
+	content := m.tabs[0].content
+	if !strings.Contains(content, "\x1b]8;") {
+		t.Fatal("expected glamour to write OSC 8 hyperlinks; the test no longer covers #40")
+	}
+	for _, l := range strings.Split(content, "\n") {
+		// A row that opens an OSC sequence must also close it: a cut
+		// one makes the terminal print the rest of the URL as text.
+		if strings.Count(l, "\x1b]") != strings.Count(l, "\x1b\\")+strings.Count(l, "\x07") {
+			t.Errorf("row has an unterminated OSC sequence: %q", l)
+		}
+		if w := lipgloss.Width(l); w > m.contentInnerWidth() {
+			t.Errorf("line is %d columns, pane is %d: %q", w, m.contentInnerWidth(), ansi.Strip(l))
+		}
 	}
 }
