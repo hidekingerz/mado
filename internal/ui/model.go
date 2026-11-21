@@ -135,6 +135,7 @@ type Model struct {
 	showLineNums bool                 // vi :set nu for source-rendered content
 	showHelp     bool
 	statusMsg    string
+	notice       string // confirms an action; not a warning, gone on the next key
 
 	tabs   []*tab
 	active int
@@ -392,6 +393,7 @@ func (m *Model) quit() tea.Cmd {
 
 func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	k := m.keys
+	m.notice = ""
 	// The settings panel owns the keyboard while open, so a key being
 	// captured can be anything — esc included. Only ctrl+c still quits,
 	// and it must quit whether or not ctrl+c is actually bound to the
@@ -511,6 +513,14 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, k.ToggleLineNums):
 		m.showLineNums = !m.showLineNums
 		m.ensureRendered(m.activeTab())
+	case key.Matches(msg, k.CopyPath):
+		t := m.activeTab()
+		if t == nil {
+			m.statusMsg = noFileToCopyMsg
+			return m, nil
+		}
+		m.notice = copiedPathMsg
+		return m, copyToClipboard(t.path)
 	}
 	return m, nil
 }
