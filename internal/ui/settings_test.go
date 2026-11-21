@@ -396,9 +396,82 @@ func TestSettingsEnumCyclesWithArrows(t *testing.T) {
 	if m.cfg.Theme.DefaultMode != "source" {
 		t.Error("left cycles backwards")
 	}
+}
+
+// enter on a choice opens a picker instead of changing the value on
+// the spot: nothing applies or saves until a choice is confirmed (#45).
+func TestSettingsEnumEnterOpensAPicker(t *testing.T) {
+	m := settingsModel(t, map[string]string{"a.md": "# A"}, "a.md")
+	m = update(t, m, keyRune(','))
+	m = moveTo(t, m, "default_mode")
 	m = update(t, m, enter())
-	if m.cfg.Theme.DefaultMode != "reader" {
-		t.Error("enter goes forward")
+	if m.settings.editing != editPick || m.cfg.Theme.DefaultMode != "reader" {
+		t.Fatalf("enter: editing = %v default_mode = %q, want a picker and no change", m.settings.editing, m.cfg.Theme.DefaultMode)
+	}
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyDown})
+	if _, err := os.Stat(m.configPath); m.cfg.Theme.DefaultMode != "reader" || err == nil {
+		t.Fatal("moving in the picker must not apply or save")
+	}
+	if got := selectedField(m); got != "default_mode" {
+		t.Errorf("down in the picker moved the cursor to %q", got)
+	}
+	if v := ansi.Strip(m.render()); !strings.Contains(v, "reader") || !strings.Contains(v, "source") {
+		t.Errorf("the picker should list the choices:\n%s", v)
+	}
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
+	if m.settings.editing != editNone || m.cfg.Theme.DefaultMode != "reader" || !m.settings.open {
+		t.Fatalf("esc cancels the picker and keeps the panel: editing = %v mode = %q open = %v", m.settings.editing, m.cfg.Theme.DefaultMode, m.settings.open)
+	}
+
+	m = update(t, m, enter())
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyDown})
+	m = update(t, m, enter())
+	if m.settings.editing != editNone || m.cfg.Theme.DefaultMode != "source" {
+		t.Fatalf("enter confirms: editing = %v default_mode = %q", m.settings.editing, m.cfg.Theme.DefaultMode)
+	}
+	if !strings.Contains(savedConfig(t, m), "default_mode = \"source\"") {
+		t.Errorf("saved:\n%s", savedConfig(t, m))
+	}
+}
+
+func TestSettingsPickerCustomOpensAPrompt(t *testing.T) {
+	m := settingsModel(t, map[string]string{"a.md": "# A"})
+	m = update(t, m, keyRune(','))
+	m = moveTo(t, m, "style")
+	m = update(t, m, enter())
+	// Walk the picker down to the last choice, custom….
+	for m.settings.pick != len(m.settings.fields[m.settings.rows[m.settings.cursor].field].Options)-1 {
+		m = update(t, m, tea.KeyPressMsg{Code: tea.KeyDown})
+	}
+	m = update(t, m, enter())
+	if m.settings.editing != editText || m.settings.input != "" {
+		t.Fatalf("custom… should open an empty prompt: editing = %v input = %q", m.settings.editing, m.settings.input)
+	}
+}
+
+// The last change can be taken back with u, so a slip of the arrow keys
+// costs nothing (#45).
+func TestSettingsUndoRestoresTheLastChange(t *testing.T) {
+	m := settingsModel(t, map[string]string{"a.md": "# A"}, "a.md")
+	m = update(t, m, keyRune(','))
+	m = moveTo(t, m, "default_mode")
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyRight})
+	if m.cfg.Theme.DefaultMode != "source" {
+		t.Fatalf("default_mode = %q", m.cfg.Theme.DefaultMode)
+	}
+	if !strings.Contains(m.settingsHint(), "u undo") {
+		t.Errorf("hint should offer undo: %q", m.settingsHint())
+	}
+	m = moveTo(t, m, "style")
+	m = update(t, m, keyRune('u'))
+	if m.cfg.Theme.DefaultMode != "reader" || m.mode != modeReader {
+		t.Fatalf("u: default_mode = %q mode = %v", m.cfg.Theme.DefaultMode, m.mode)
+	}
+	if !strings.Contains(savedConfig(t, m), "default_mode = \"reader\"") {
+		t.Errorf("undo should save too:\n%s", savedConfig(t, m))
+	}
+	if strings.Contains(m.settingsHint(), "u undo") {
+		t.Errorf("one undo only: %q", m.settingsHint())
 	}
 }
 
