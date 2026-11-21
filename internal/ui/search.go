@@ -260,8 +260,9 @@ func (m Model) handleSearchMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		default:
 			row := at.Y - tabBarHeight - 1 - searchHeaderRows
 			idx := m.search.off + row
-			if row >= 0 && idx < len(m.search.results) {
-				m.search.cursor = idx
+			if rows := m.searchRows(); row >= 0 && idx < len(rows) {
+				// A file heading opens the file at its first match.
+				m.search.cursor = rows[idx].result
 				m.openSearchResult()
 			}
 		}
@@ -291,6 +292,52 @@ func (m *Model) searchListHeight() int {
 	return maxInt(m.contentInnerHeight()-searchHeaderRows, 0)
 }
 
+// searchRow is one line of the result list: a match, or the heading
+// above a file's content matches.
+type searchRow struct {
+	result  int // index into results; for a heading, the file's first match
+	heading bool
+	count   int // a heading's number of matches
+	numW    int // width of the widest line number under the heading
+}
+
+// searchRows lays the results out as list rows. Name matches are one
+// row each. Content matches are grouped under a heading per file, so
+// the path is shown once and the rows below it have the width for the
+// matching text (#43). The search reports a file's matches together.
+func (m Model) searchRows() []searchRow {
+	res := m.search.results
+	rows := make([]searchRow, 0, len(res))
+	for i := 0; i < len(res); i++ {
+		if res[i].Line == 0 {
+			rows = append(rows, searchRow{result: i})
+			continue
+		}
+		j := i
+		numW := 0
+		for j < len(res) && res[j].Path == res[i].Path && res[j].Line > 0 {
+			numW = maxInt(numW, len(strconv.Itoa(res[j].Line)))
+			j++
+		}
+		rows = append(rows, searchRow{result: i, heading: true, count: j - i, numW: numW})
+		for k := i; k < j; k++ {
+			rows = append(rows, searchRow{result: k, numW: numW})
+		}
+		i = j - 1
+	}
+	return rows
+}
+
+// searchRowOf is the list row of result i.
+func searchRowOf(rows []searchRow, i int) int {
+	for r, row := range rows {
+		if !row.heading && row.result == i {
+			return r
+		}
+	}
+	return 0
+}
+
 func (m *Model) moveSearchCursor(delta int) {
 	m.search.cursor += delta
 	m.clampSearch()
@@ -298,11 +345,18 @@ func (m *Model) moveSearchCursor(delta int) {
 	if h <= 0 {
 		return
 	}
-	if m.search.cursor < m.search.off {
-		m.search.off = m.search.cursor
+	rows := m.searchRows()
+	r := searchRowOf(rows, m.search.cursor)
+	// The first match of a file brings its heading into view with it.
+	top := r
+	if r > 0 && rows[r-1].heading {
+		top = r - 1
 	}
-	if m.search.cursor >= m.search.off+h {
-		m.search.off = m.search.cursor - h + 1
+	if top < m.search.off {
+		m.search.off = top
+	}
+	if r >= m.search.off+h {
+		m.search.off = r - h + 1
 	}
 }
 
@@ -319,7 +373,7 @@ func (m *Model) clampSearch() {
 	if m.search.cursor < 0 {
 		m.search.cursor = 0
 	}
-	maxOff := n - m.searchListHeight()
+	maxOff := len(m.searchRows()) - m.searchListHeight()
 	if maxOff < 0 {
 		maxOff = 0
 	}
@@ -477,22 +531,28 @@ func (m Model) renderSearch(w, h int) string {
 		rows = append(rows, clip(m.styles.dimmed.Render(" ⚠ "+termsafe.String(s.err)), w))
 		listH--
 	}
+	list := m.searchRows()
 	for i := 0; i < listH; i++ {
 		idx := s.off + i
-		if idx >= len(s.results) {
+		if idx >= len(list) {
 			rows = append(rows, "")
 			continue
 		}
-		rows = append(rows, m.renderSearchRow(s.results[idx], w, idx == s.cursor))
+		row := list[idx]
+		if row.heading {
+			rows = append(rows, m.renderSearchHeading(s.results[row.result], row.count, w))
+			continue
+		}
+		rows = append(rows, m.renderSearchRow(s.results[row.result], row.numW, w, row.result == s.cursor))
 	}
 	return strings.Join(rows, "\n")
 }
 
 // renderSearchRow lays out one match in w columns: the file's path for
-// a name match; path, line number and the matching text for a content
-// match. The selected row is drawn in the selection style, others get
+// a name match; the line number, padded to numW, and the matching text
+// for a content match. The selected row is drawn in the selection style, others get
 // the hit itself emphasized.
-func (m Model) renderSearchRow(r search.Match, w int, selected bool) string {
+func (m Model) renderSearchRow(r search.Match, numW, w int, selected bool) string {
 	// Paths and lines come from disk: display them, do not obey them.
 	rel := termsafe.String(r.Rel)
 	if r.Line == 0 {
@@ -502,17 +562,28 @@ func (m Model) renderSearchRow(r search.Match, w int, selected bool) string {
 		}
 		return " " + m.emphasize(text, m.search.query, m.styles.file)
 	}
-	loc := truncateLeft(rel+":"+strconv.Itoa(r.Line), maxInt(w/2, 1))
-	snipW := w - 1 - lipgloss.Width(loc) - 2
+	// The file is named by the heading above; the row is the line
+	// number, right-aligned within its file, and the text.
+	num := strconv.Itoa(r.Line)
+	lead := "   " + strings.Repeat(" ", maxInt(numW-len(num), 0))
+	snipW := w - lipgloss.Width(lead) - len(num) - 2
 	snippet := searchSnippet(termsafe.String(r.Text), m.search.query, snipW)
 	if selected {
-		return m.styles.selection.Render(padLine(" "+loc+"  "+snippet, w))
+		return m.styles.selection.Render(padLine(clip(lead+num+"  "+snippet, w), w))
 	}
-	styledLoc := m.styles.dir.Render(loc)
-	if i := strings.LastIndex(loc, ":"); i >= 0 {
-		styledLoc = m.styles.dir.Render(loc[:i]) + m.styles.dimmed.Render(loc[i:])
+	return clip(lead+m.styles.dimmed.Render(num)+"  "+m.emphasize(snippet, m.search.query, lipgloss.NewStyle()), w)
+}
+
+// renderSearchHeading names the file a group of content matches is in,
+// and how many there are.
+func (m Model) renderSearchHeading(r search.Match, count, w int) string {
+	// Spelled out, so the count does not read as a line number.
+	tail := fmt.Sprintf("  %d matches", count)
+	if count == 1 {
+		tail = "  1 match"
 	}
-	return " " + styledLoc + "  " + m.emphasize(snippet, m.search.query, lipgloss.NewStyle())
+	rel := truncateLeft(termsafe.String(r.Rel), maxInt(w-1-len(tail), 1))
+	return clip(" "+m.styles.dir.Render(rel)+m.styles.dimmed.Render(tail), w)
 }
 
 // truncateLeft fits plain text into w columns by cutting from the

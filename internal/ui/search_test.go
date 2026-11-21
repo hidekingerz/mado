@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/hidekingerz/mado/internal/config"
 	"github.com/hidekingerz/mado/internal/search"
@@ -159,7 +160,7 @@ func TestSearchContentKeyAndTabSwitchTargets(t *testing.T) {
 		t.Errorf("first match = %+v", r)
 	}
 	v := m.render()
-	if !strings.Contains(v, "a.md:4") || !strings.Contains(v, "the needle is here") {
+	if !strings.Contains(v, "a.md") || !strings.Contains(v, "4  the needle is here") {
 		t.Errorf("panel should show path, line and text:\n%s", v)
 	}
 
@@ -490,5 +491,60 @@ func TestSearchPanelFitsThePane(t *testing.T) {
 	}
 	if _, err := os.Stat(m.root.Path); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// Content matches sit under one heading per file instead of repeating
+// the path on every row, and the cursor moves over matches only (#43).
+func TestSearchContentGroupsMatchesByFile(t *testing.T) {
+	m := testModel(t, map[string]string{
+		"docs/plans/long-plan-name.md": "needle one\nhay\nneedle three\n",
+		"z.md":                         "hay\nneedle two\n",
+	})
+	m, _ = updateCmd(t, m, tea.KeyPressMsg{Code: 'f', Mod: tea.ModCtrl})
+	m = typeQuery(t, m, "needle")
+	v := ansi.Strip(m.render())
+	if n := strings.Count(v, "docs/plans/long-plan-name.md"); n != 1 {
+		t.Errorf("the path should appear once, as a heading, got %d:\n%s", n, v)
+	}
+	if strings.Contains(v, "long-plan-name.md:") {
+		t.Errorf("rows should not repeat path:line:\n%s", v)
+	}
+	for _, want := range []string{"1  needle one", "3  needle three", "2  needle two"} {
+		if !strings.Contains(v, want) {
+			t.Errorf("missing row %q:\n%s", want, v)
+		}
+	}
+
+	// Two files, three matches: the selection walks the matches and
+	// skips the second file's heading.
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyDown})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyDown})
+	if r := m.search.results[m.search.cursor]; r.Rel != "z.md" || r.Line != 2 {
+		t.Errorf("after two downs: %+v, want z.md:2", r)
+	}
+
+	// Clicking a heading opens that file at its first match.
+	y := tabBarHeight + 1 + searchHeaderRows // the first heading row
+	m = update(t, m, tea.MouseClickMsg{X: m.sidebarWidth() + 3, Y: y, Button: tea.MouseLeft})
+	if len(m.tabs) != 1 || m.tabs[0].title != "long-plan-name.md" {
+		t.Errorf("tabs = %+v, want long-plan-name.md", m.tabs)
+	}
+}
+
+// A file with more matches than fit keeps its heading in view when the
+// selection comes back up to its first match.
+func TestSearchContentScrollShowsTheHeading(t *testing.T) {
+	var b strings.Builder
+	for i := 0; i < 60; i++ {
+		b.WriteString("needle\n")
+	}
+	m := testModel(t, map[string]string{"a.md": b.String()})
+	m, _ = updateCmd(t, m, tea.KeyPressMsg{Code: 'f', Mod: tea.ModCtrl})
+	m = typeQuery(t, m, "needle")
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyEnd})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyHome})
+	if m.search.off != 0 {
+		t.Errorf("off = %d, want 0 so the heading shows", m.search.off)
 	}
 }
