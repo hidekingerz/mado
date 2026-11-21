@@ -230,11 +230,13 @@ plugin are in that repository's README.
 from `config.toml` under its table. `↑`/`↓` (or `k`/`j`) move between
 them, and the footer describes the selected one with its default.
 Editing depends on the kind of value: `enter` or `space` flips a
-switch, `←`/`→` step through a choice, `enter` opens an inline prompt
-for text, numbers and lists (`enter` applies, `esc` cancels), and for
-a key binding `enter` captures the next key you press — whatever it
-is, `esc` included — while `backspace` removes the action's last key.
-`esc` or `,` closes the panel. `ctrl+c` still quits.
+switch, `←`/`→` step through a choice while `enter` lists its options
+to pick from (`↑`/`↓` choose, `enter` applies, `esc` cancels), `enter`
+opens an inline prompt for text, numbers and lists (`enter` applies,
+`esc` cancels), and for a key binding `enter` captures the next key you
+press — whatever it is, `esc` included — while `backspace` removes the
+action's last key. `u` takes back the last change. `esc` or `,` closes
+the panel. `ctrl+c` still quits.
 
 A change takes effect the moment it is made: colors repaint, a new
 style re-renders the open tabs, the tree reloads, the watcher starts

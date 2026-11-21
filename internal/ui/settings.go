@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -25,7 +26,14 @@ const (
 	editNone    settingsEdit = iota
 	editText                 // an inline prompt holds the value
 	editCapture              // the next key press is the value
+	editPick                 // choosing one of a field's options
 )
+
+// settingsUndo is the value a field had before the last change.
+type settingsUndo struct {
+	field config.Field
+	value string
+}
 
 // settingsRow is one line of the panel: a table heading or a field.
 type settingsRow struct {
@@ -43,6 +51,8 @@ type settingsState struct {
 	off       int
 	editing   settingsEdit
 	input     string // the text prompt's contents
+	pick      int    // the option under the picker's cursor
+	undo      *settingsUndo
 	prevFocus focusArea
 }
 
@@ -183,6 +193,9 @@ func (m Model) handleSettingsKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if s.editing == editCapture {
 		return m.handleSettingsCaptureKey(msg)
 	}
+	if s.editing == editPick {
+		return m.handleSettingsPickKey(msg)
+	}
 	if key.Matches(msg, m.keys.Settings) {
 		m.closeSettings()
 		return m, nil
@@ -204,6 +217,8 @@ func (m Model) handleSettingsKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.moveSettingsCursor(len(s.rows))
 	case "enter", "space", "left", "right", "backspace":
 		return m.editSetting(msg)
+	case "u":
+		return m.undoSetting()
 	}
 	return m, nil
 }
@@ -309,6 +324,8 @@ func (m Model) renderSettingsRow(r settingsRow, keyW, w int, selected bool) stri
 		}
 		text := truncateLeft(termsafe.String(m.settings.input), maxInt(valueW-1, 0))
 		return clip(name+text+m.styles.selection.Render(" "), w)
+	case selected && m.settings.editing == editPick:
+		return clip(name+m.renderSettingsPicker(f, valueW), w)
 	case selected && m.settings.editing == editCapture:
 		return m.styles.selection.Render(padLine(truncate(name+value+"  press a key…", w), w))
 	case selected:
@@ -318,6 +335,26 @@ func (m Model) renderSettingsRow(r settingsRow, keyW, w int, selected bool) stri
 	default:
 		return renderSettingsPlainRow(name, value, w, m.styles.file)
 	}
+}
+
+// renderSettingsPicker lists f's options in w columns with the one
+// under the picker's cursor highlighted. When they do not all fit, it
+// shows the highlighted one alone with its place in the list.
+func (m Model) renderSettingsPicker(f config.Field, w int) string {
+	parts := make([]string, len(f.Options))
+	for i, o := range f.Options {
+		if i == m.settings.pick {
+			parts[i] = m.styles.selection.Render(" " + o + " ")
+		} else {
+			parts[i] = m.styles.dimmed.Render(" " + o + " ")
+		}
+	}
+	line := strings.Join(parts, " ")
+	if lipgloss.Width(line) <= w {
+		return line
+	}
+	one := fmt.Sprintf(" %s  %d/%d", parts[m.settings.pick], m.settings.pick+1, len(f.Options))
+	return truncate(one, w)
 }
 
 // renderSettingsPlainRow lays out name+value in w columns for a
@@ -359,20 +396,26 @@ func (m Model) settingsHint() string {
 		return "enter apply │ esc cancel "
 	case editCapture:
 		return "press a key │ ctrl+c quit "
+	case editPick:
+		return "↑/↓ choose │ enter apply │ esc cancel "
+	}
+	tail := "esc close "
+	if m.settings.undo != nil {
+		tail = "u undo │ " + tail
 	}
 	f, ok := m.selectedSetting()
 	if !ok {
-		return "esc close "
+		return tail
 	}
 	switch f.Kind {
 	case config.KindBool:
-		return "enter toggle │ esc close "
+		return "enter toggle │ " + tail
 	case config.KindEnum:
-		return "enter/→ next │ ← previous │ esc close "
+		return "enter choose │ ←/→ change │ " + tail
 	case config.KindKeys:
-		return "enter capture │ backspace remove │ esc close "
+		return "enter capture │ backspace remove │ " + tail
 	default:
-		return "enter edit │ esc close "
+		return "enter edit │ " + tail
 	}
 }
 
@@ -396,9 +439,16 @@ func (m Model) editSetting(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 	case config.KindEnum:
+		if k == "enter" {
+			// enter opens a picker rather than changing the value on
+			// the spot, so it never applies a change by surprise (#45).
+			m.settings.editing = editPick
+			m.settings.pick = optionIndex(f.Options, cur)
+			return m, nil
+		}
 		var step int
 		switch k {
-		case "enter", "right":
+		case "right":
 			step = 1
 		case "left":
 			step = -1
@@ -432,15 +482,67 @@ func (m Model) editSetting(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // value that is not an option (a custom style path) counts as the
 // custom slot, which is the last option.
 func cycleOption(options []string, cur string, step int) string {
-	i := len(options) - 1
+	n := len(options)
+	return options[((optionIndex(options, cur)+step)%n+n)%n]
+}
+
+// optionIndex is cur's place in options; a value that is not one of
+// them (a custom style path) is in the custom slot, the last.
+func optionIndex(options []string, cur string) int {
 	for j, o := range options {
 		if o == cur {
-			i = j
-			break
+			return j
 		}
 	}
-	n := len(options)
-	return options[((i+step)%n+n)%n]
+	return len(options) - 1
+}
+
+// handleSettingsPickKey moves the picker and applies or drops its
+// choice. Nothing changes until enter.
+func (m Model) handleSettingsPickKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	s := &m.settings
+	f, ok := m.selectedSetting()
+	if !ok || len(f.Options) == 0 {
+		s.editing = editNone
+		return m, nil
+	}
+	n := len(f.Options)
+	switch msg.String() {
+	case "esc":
+		s.editing = editNone
+	case "up", "k", "left", "ctrl+p":
+		s.pick = (s.pick - 1 + n) % n
+	case "down", "j", "right", "ctrl+n":
+		s.pick = (s.pick + 1) % n
+	case "enter":
+		s.editing = editNone
+		cur := f.Get(&m.cfg)
+		choice := f.Options[s.pick]
+		if choice == config.CustomOption {
+			m.startSettingsText(cur, f.Options)
+			return m, nil
+		}
+		if choice == cur {
+			return m, nil
+		}
+		cmd, _ := m.commitSetting(f, func(c *config.Config) error { return f.Set(c, choice) })
+		return m, cmd
+	}
+	return m, nil
+}
+
+// undoSetting puts back the value the last change replaced. There is
+// one level of undo; undoing is not itself undoable.
+func (m Model) undoSetting() (tea.Model, tea.Cmd) {
+	u := m.settings.undo
+	if u == nil {
+		return m, nil
+	}
+	cmd, ok := m.commitSetting(u.field, func(c *config.Config) error { return u.field.Set(c, u.value) })
+	if ok {
+		m.settings.undo = nil
+	}
+	return m, cmd
 }
 
 // startSettingsText opens the inline prompt holding value. A value
@@ -504,10 +606,12 @@ func (m Model) handleSettingsCaptureKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd
 // a watcher the change started.
 func (m *Model) commitSetting(f config.Field, change func(*config.Config) error) (tea.Cmd, bool) {
 	next := m.cfg
+	prev := f.Get(&m.cfg)
 	if err := change(&next); err != nil {
 		m.statusMsg = err.Error()
 		return nil, false
 	}
+	m.settings.undo = &settingsUndo{field: f, value: prev}
 	m.statusMsg = ""
 	cmd := m.applyConfig(next)
 	m.saveSetting(f)
