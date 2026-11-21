@@ -226,7 +226,11 @@ func (m Model) renderHelp(w, h int) string {
 	}
 	b.WriteString("\n" + m.styles.dimmed.Render("Search: type to filter, tab switches names/contents,\n↑/↓ select, enter opens, esc closes."))
 	b.WriteString("\n\n" + m.styles.dimmed.Render("Mouse: click to select/open, wheel to scroll,\nclick a tab to switch, ✕ to close."))
-	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, b.String())
+	// Place centers each line of a multi-line string on its own, which
+	// would scatter the key column; padding every line to the block's
+	// width first makes the block move as one.
+	block := lipgloss.NewStyle().Align(lipgloss.Left).Render(b.String())
+	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, block)
 }
 
 // ── status bar ──────────────────────────────────────────────────────
