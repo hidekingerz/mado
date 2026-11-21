@@ -44,6 +44,10 @@ const (
 	modeSource
 )
 
+// noReaderViewMsg starts the note shown when the mode key is pressed on
+// a tab that is not markdown; the new mode follows it.
+const noReaderViewMsg = "no reader view for this file; markdown tabs: "
+
 func (v viewMode) String() string {
 	if v == modeSource {
 		return "SOURCE"
@@ -475,6 +479,13 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.mode = modeSource
 		} else {
 			m.mode = modeReader
+		}
+		// The mode is shared by every tab, so it still flips here, but a
+		// plain text tab looks the same either way: say so (#48).
+		if t := m.activeTab(); t != nil && !filetree.IsMarkdown(t.path) {
+			m.statusMsg = noReaderViewMsg + m.mode.String()
+		} else if strings.HasPrefix(m.statusMsg, noReaderViewMsg) {
+			m.statusMsg = ""
 		}
 		m.ensureRendered(m.activeTab())
 	case key.Matches(msg, k.ToggleAllFiles):

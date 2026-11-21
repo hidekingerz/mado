@@ -1066,3 +1066,15 @@ func TestTabBarClickMatchesScrolledLayout(t *testing.T) {
 		t.Errorf("active tab %d not drawn after clicking the marker: %q", m.active, tabBar(m))
 	}
 }
+
+func TestPlainTextTabSaysText(t *testing.T) {
+	m := testModel(t, map[string]string{"go.sum": "x v1 h1:abc"}, "go.sum")
+	bar := m.renderStatusBar()
+	if !strings.Contains(bar, "[TEXT]") || strings.Contains(bar, "[READER]") {
+		t.Errorf("status bar = %q, want [TEXT] for a non-markdown file", bar)
+	}
+	m = update(t, m, keyRune('m'))
+	if !strings.Contains(m.renderStatusBar(), "no reader view") {
+		t.Errorf("m on a plain text tab should explain itself: %q", m.renderStatusBar())
+	}
+}
