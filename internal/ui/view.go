@@ -10,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	"github.com/hidekingerz/mado/internal/filetree"
 	"github.com/hidekingerz/mado/internal/termsafe"
 )
 
@@ -325,7 +326,12 @@ func (m Model) renderStatusBar() string {
 			prefix += "[SEARCH " + strings.ToUpper(m.search.target.String()) + "]  "
 			path = tildePath(m.root.Path)
 		} else if t := m.activeTab(); t != nil {
-			prefix += "[" + m.mode.String() + "]  "
+			label := m.mode.String()
+			if !filetree.IsMarkdown(t.path) {
+				// Plain text is shown as is in either mode.
+				label = "TEXT"
+			}
+			prefix += "[" + label + "]  "
 			path = m.displayPath(t.path)
 			suffix = fmt.Sprintf("  %3.0f%%", t.vp.ScrollPercent()*100)
 			if t.renderErr != "" {
