@@ -116,8 +116,8 @@ under `[general]` to turn this off.
 name; `ctrl+f` opens it for file contents. Results appear as you type.
 `tab` switches between the two targets without losing the query,
 `↑`/`↓` move through the results, `enter` opens the selected file and
-`esc` puts the panel away. A content hit opens the file scrolled to
-the matching line. Typed letters go to the query, so `q` and `?` do
+`esc` puts the panel away. Content hits are listed under a heading for
+each file, by line number; a hit opens the file scrolled to its line. Typed letters go to the query, so `q` and `?` do
 not act while the prompt is open; `ctrl+c` still quits.
 
 Matching is a plain substring — case-insensitive unless the query
