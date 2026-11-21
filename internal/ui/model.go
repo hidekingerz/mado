@@ -169,6 +169,7 @@ func New(cfg config.Config, rootDir string, initialFiles []string) (Model, error
 	opts := filetree.Options{
 		ShowAllFiles: cfg.Sidebar.ShowAllFiles,
 		ShowHidden:   cfg.Sidebar.ShowHidden,
+		Exclude:      cfg.Search.Exclude,
 	}
 	root, err := filetree.New(rootDir, opts)
 	if err != nil {

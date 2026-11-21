@@ -223,34 +223,11 @@ func sortNames(ms []Match, m matcher) {
 	})
 }
 
-// Excluded reports whether the root-relative, slash-separated path rel
-// matches one of the exclude patterns. A pattern without a slash is
-// matched against the last path element, so "node_modules" excludes
-// that directory at any depth and "*.log" every log file; a pattern
-// with a slash is matched against the whole relative path, so
-// "docs/drafts" excludes just that directory. Patterns use path.Match
-// syntax; a malformed pattern matches literally. A trailing slash is
-// ignored.
+// Excluded reports whether rel matches one of the exclude patterns; see
+// filetree.Excluded, which the sidebar shares so both leave out the
+// same entries.
 func Excluded(rel string, patterns []string) bool {
-	base := path.Base(rel)
-	for _, pat := range patterns {
-		pat = strings.TrimSuffix(strings.TrimSpace(pat), "/")
-		if pat == "" {
-			continue
-		}
-		subject := base
-		if strings.Contains(pat, "/") {
-			subject = rel
-		}
-		ok, err := path.Match(pat, subject)
-		if err != nil {
-			ok = pat == subject
-		}
-		if ok {
-			return true
-		}
-	}
-	return false
+	return filetree.Excluded(rel, patterns)
 }
 
 // Find returns the byte range [start, end) of the first occurrence of

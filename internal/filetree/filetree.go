@@ -4,6 +4,7 @@ package filetree
 
 import (
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -13,6 +14,9 @@ import (
 type Options struct {
 	ShowAllFiles bool // show every file, not just markdown
 	ShowHidden   bool // show dotfiles and dot-directories
+	// Exclude lists patterns for entries to leave out, matched by
+	// Excluded against the path relative to the tree's root.
+	Exclude []string
 }
 
 // Node is a file or directory in the tree.
@@ -22,6 +26,7 @@ type Node struct {
 	IsDir    bool
 	Expanded bool
 	loaded   bool
+	rel      string // slash-separated path from the tree's root
 	Children []*Node
 }
 
@@ -176,10 +181,15 @@ func (n *Node) load(opts Options) error {
 		if !opts.ShowHidden && strings.HasPrefix(name, ".") {
 			continue
 		}
+		rel := path.Join(n.rel, name)
+		if Excluded(rel, opts.Exclude) {
+			continue
+		}
 		child := &Node{
 			Name:  name,
 			Path:  filepath.Join(n.Path, name),
 			IsDir: e.IsDir(),
+			rel:   rel,
 		}
 		if child.IsDir {
 			dirs = append(dirs, child)
@@ -220,4 +230,34 @@ func Flatten(root *Node) []Item {
 		walk(root, 0)
 	}
 	return items
+}
+
+// Excluded reports whether the root-relative, slash-separated path rel
+// matches one of the exclude patterns. A pattern without a slash is
+// matched against the last path element, so "node_modules" excludes
+// that directory at any depth and "*.log" every log file; a pattern
+// with a slash is matched against the whole relative path, so
+// "docs/drafts" excludes just that directory. Patterns use path.Match
+// syntax; a malformed pattern matches literally. A trailing slash is
+// ignored.
+func Excluded(rel string, patterns []string) bool {
+	base := path.Base(rel)
+	for _, pat := range patterns {
+		pat = strings.TrimSuffix(strings.TrimSpace(pat), "/")
+		if pat == "" {
+			continue
+		}
+		subject := base
+		if strings.Contains(pat, "/") {
+			subject = rel
+		}
+		ok, err := path.Match(pat, subject)
+		if err != nil {
+			ok = pat == subject
+		}
+		if ok {
+			return true
+		}
+	}
+	return false
 }

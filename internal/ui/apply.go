@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"slices"
+
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
@@ -75,6 +77,10 @@ func (m *Model) applyConfig(next config.Config) tea.Cmd {
 	}
 	if next.Sidebar.ShowHidden != prev.Sidebar.ShowHidden {
 		m.treeOpts.ShowHidden = next.Sidebar.ShowHidden
+		treeChanged = true
+	}
+	if !slices.Equal(next.Search.Exclude, prev.Search.Exclude) {
+		m.treeOpts.Exclude = next.Search.Exclude
 		treeChanged = true
 	}
 	if treeChanged {
