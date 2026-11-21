@@ -123,12 +123,12 @@ func TestMouseClickTabBarSwitchesAndCloses(t *testing.T) {
 	if m.active != 1 {
 		t.Fatalf("active = %d, want 1", m.active)
 	}
-	first := m.tabRegions[0]
+	first := m.tabRegions()[0]
 	m = update(t, m, tea.MouseClickMsg{X: first.start + 1, Y: 0, Button: tea.MouseLeft})
 	if m.active != 0 {
 		t.Errorf("click tab 0: active = %d, want 0", m.active)
 	}
-	m = update(t, m, tea.MouseClickMsg{X: m.tabRegions[0].closeX, Y: 0, Button: tea.MouseLeft})
+	m = update(t, m, tea.MouseClickMsg{X: m.tabRegions()[0].closeX, Y: 0, Button: tea.MouseLeft})
 	if len(m.tabs) != 1 || m.tabs[0].title != "b.md" {
 		t.Fatalf("expected a.md closed via ✕, got %+v", m.tabs)
 	}
@@ -996,4 +996,73 @@ func hexOf(c color.Color) string {
 	}
 	r, g, b, _ := c.RGBA()
 	return fmt.Sprintf("#%02X%02X%02X", r>>8, g>>8, b>>8)
+}
+
+// manyTabs opens n files with long names, more than an 80-column tab
+// bar can hold.
+func manyTabs(t *testing.T, n int) Model {
+	t.Helper()
+	files := map[string]string{}
+	var open []string
+	for i := 0; i < n; i++ {
+		name := "2026-08-0" + string(rune('0'+i)) + "-a-rather-long-plan-name.md"
+		files[name] = "# T"
+		open = append(open, name)
+	}
+	m := testModel(t, files, open...)
+	return update(t, m, tea.WindowSizeMsg{Width: 80, Height: 24})
+}
+
+func tabBar(m Model) string {
+	return ansi.Strip(strings.SplitN(m.render(), "\n", 2)[0])
+}
+
+// When the tabs do not fit, the bar scrolls to keep the active one in
+// view and says how many are hidden on each side (#41).
+func TestTabBarKeepsActiveTabInView(t *testing.T) {
+	m := manyTabs(t, 8)
+	if m.active != 7 {
+		t.Fatalf("active = %d, want the last opened tab", m.active)
+	}
+	bar := tabBar(m)
+	if w := ansi.StringWidth(bar); w != 80 {
+		t.Errorf("tab bar is %d columns, want 80", w)
+	}
+	if !strings.Contains(bar, "2026-08-07") {
+		t.Errorf("active tab is not drawn: %q", bar)
+	}
+	if !strings.HasPrefix(bar, "‹ ") {
+		t.Errorf("hidden tabs on the left are not indicated: %q", bar)
+	}
+
+	for i := 0; i < 7; i++ {
+		m = update(t, m, tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
+	}
+	bar = tabBar(m)
+	if !strings.Contains(bar, "2026-08-00") || !strings.HasSuffix(strings.TrimRight(bar, " "), " ›") {
+		t.Errorf("after moving to the first tab: %q", bar)
+	}
+	if strings.HasPrefix(bar, "‹") {
+		t.Errorf("nothing is hidden on the left of the first tab: %q", bar)
+	}
+}
+
+// A click lands on the tab drawn under the pointer, also after the bar
+// has scrolled.
+func TestTabBarClickMatchesScrolledLayout(t *testing.T) {
+	m := manyTabs(t, 8)
+	bar := tabBar(m)
+	col := strings.Index(bar, "2026-08-06")
+	if col < 0 {
+		t.Fatalf("tab 6 is not drawn: %q", bar)
+	}
+	m = update(t, m, tea.MouseClickMsg{X: ansi.StringWidth(bar[:col]), Y: 0, Button: tea.MouseLeft})
+	if m.active != 6 {
+		t.Errorf("clicked tab 6, active = %d", m.active)
+	}
+	// Clicking the left marker reveals the tab before the first shown.
+	m = update(t, m, tea.MouseClickMsg{X: 0, Y: 0, Button: tea.MouseLeft})
+	if !strings.Contains(tabBar(m), "2026-08-0"+string(rune('0'+m.active))) {
+		t.Errorf("active tab %d not drawn after clicking the marker: %q", m.active, tabBar(m))
+	}
 }
