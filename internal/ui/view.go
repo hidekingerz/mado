@@ -2,6 +2,8 @@ package ui
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -294,46 +296,51 @@ func (m Model) renderHelp(w, h int) string {
 // ── status bar ──────────────────────────────────────────────────────
 
 func (m Model) renderStatusBar() string {
-	left := " "
+	// The bar is built from three parts: tags on the left that always
+	// stay, a path that is the first thing to give way when the pane is
+	// narrow, and details after it (scroll percent, errors) that should
+	// outlast the path (#42).
+	prefix := " "
 	if m.watcher != nil {
-		left += "[WATCH] "
+		prefix += "[WATCH] "
 	}
+	var path, suffix string
 	if m.settings.open {
-		left += "[SETTINGS]  "
+		prefix += "[SETTINGS]  "
 		switch {
 		case m.statusMsg != "":
 			// A long config path would otherwise push the reason for a
 			// rejected or unsaved change off the edge of the bar; the
 			// panel's own title row already shows the path, so leave
 			// it out here and show the reason instead.
-			left += "⚠ " + m.statusMsg
+			suffix = "⚠ " + m.statusMsg
 		case m.configPath != "":
-			left += m.configPath
+			path = tildePath(m.configPath)
 		default:
-			left += "not saved"
+			suffix = "not saved"
 		}
 	} else {
 		if m.search.open {
-			left += "[SEARCH " + strings.ToUpper(m.search.target.String()) + "]  " + m.root.Path
-			if sum := m.searchSummary(); sum != "" {
-				left += "  " + sum
-			}
+			// The match count is in the panel's header row already.
+			prefix += "[SEARCH " + strings.ToUpper(m.search.target.String()) + "]  "
+			path = tildePath(m.root.Path)
 		} else if t := m.activeTab(); t != nil {
-			left += "[" + m.mode.String() + "]  " + t.path
-			left += fmt.Sprintf("  %3.0f%%", t.vp.ScrollPercent()*100)
+			prefix += "[" + m.mode.String() + "]  "
+			path = m.displayPath(t.path)
+			suffix = fmt.Sprintf("  %3.0f%%", t.vp.ScrollPercent()*100)
 			if t.renderErr != "" {
-				left += "  [render error: " + t.renderErr + "]"
+				suffix += "  [render error: " + t.renderErr + "]"
 			}
 		} else {
-			left += m.root.Path
+			path = tildePath(m.root.Path)
 		}
 		if m.statusMsg != "" {
-			left += "  ⚠ " + m.statusMsg
+			suffix += "  ⚠ " + m.statusMsg
 		}
 	}
-	// left is built from paths and error messages, both of which carry
-	// names from disk.
-	left = termsafe.String(left)
+	// path and suffix carry names from disk and error messages.
+	path = termsafe.String(path)
+	suffix = termsafe.String(suffix)
 	right := m.keys.Help.Help().Key + " help │ " + m.keys.Quit.Help().Key + " quit "
 	if m.search.open {
 		right = "enter open │ tab " + m.search.target.Toggle().String() + " │ esc close "
@@ -342,6 +349,13 @@ func (m Model) renderStatusBar() string {
 		right = m.settingsHint()
 	}
 
+	room := m.width - lipgloss.Width(right) - 1 - lipgloss.Width(prefix) - lipgloss.Width(suffix)
+	if lipgloss.Width(path) > room {
+		// Keep the end of the path: the file name says more than the
+		// directories above it.
+		path = truncateLeft(path, maxInt(room, 0))
+	}
+	left := prefix + path + suffix
 	gap := m.width - lipgloss.Width(left) - lipgloss.Width(right)
 	if gap < 1 {
 		left = truncate(left, maxInt(m.width-lipgloss.Width(right)-1, 0))
@@ -356,6 +370,30 @@ func (m Model) renderStatusBar() string {
 	}
 	line := left + strings.Repeat(" ", gap) + right
 	return m.styles.status.Render(padLine(line, m.width))
+}
+
+// displayPath names a file relative to the root when it sits under it,
+// and with ~ for the home directory otherwise.
+func (m Model) displayPath(p string) string {
+	if rel, err := filepath.Rel(m.root.Path, p); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return rel
+	}
+	return tildePath(p)
+}
+
+// tildePath replaces a leading home directory with ~.
+func tildePath(p string) string {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return p
+	}
+	if p == home {
+		return "~"
+	}
+	if strings.HasPrefix(p, home+string(filepath.Separator)) {
+		return "~" + p[len(home):]
+	}
+	return p
 }
 
 func padLine(s string, w int) string {
