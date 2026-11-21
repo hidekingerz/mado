@@ -314,6 +314,7 @@ func (m Model) renderHelp(w, h int) string {
 		{k.ToggleAllFiles.Help().Key, k.ToggleAllFiles.Help().Desc},
 		{k.ToggleHidden.Help().Key, k.ToggleHidden.Help().Desc},
 		{k.ToggleLineNums.Help().Key, k.ToggleLineNums.Help().Desc},
+		{k.CopyPath.Help().Key, k.CopyPath.Help().Desc},
 		{k.Search.Help().Key, k.Search.Help().Desc},
 		{k.SearchContent.Help().Key, k.SearchContent.Help().Desc},
 		{k.Settings.Help().Key, k.Settings.Help().Desc},
@@ -390,6 +391,9 @@ func (m Model) renderStatusBar() string {
 		}
 		if m.statusMsg != "" {
 			suffix += "  ⚠ " + m.statusMsg
+		}
+		if m.notice != "" {
+			suffix += "  " + m.notice
 		}
 	}
 	// path and suffix carry names from disk and error messages.

@@ -238,6 +238,7 @@ func keyActions() []keyAction {
 		{"toggle_all_files", "All files / markdown only", func(c *Config) *[]string { return &c.Keys.ToggleAllFiles }},
 		{"toggle_hidden", "Show / hide dotfiles", func(c *Config) *[]string { return &c.Keys.ToggleHidden }},
 		{"toggle_line_numbers", "Line numbers in source view", func(c *Config) *[]string { return &c.Keys.ToggleLineNums }},
+		{"copy_path", "Copy the open file's absolute path", func(c *Config) *[]string { return &c.Keys.CopyPath }},
 		{"search", "Search file names", func(c *Config) *[]string { return &c.Keys.Search }},
 		{"search_content", "Search file contents", func(c *Config) *[]string { return &c.Keys.SearchContent }},
 		{"settings", "Open this settings panel", func(c *Config) *[]string { return &c.Keys.Settings }},

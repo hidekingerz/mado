@@ -266,6 +266,7 @@ is refused with a note in the status bar and nothing changes.
 | `a`                | show all files / markdown only  |
 | `.`                | show / hide dotfiles            |
 | `n`                | toggle line numbers (source)    |
+| `y`                | copy the open file's path       |
 | `/`                | search file names               |
 | `ctrl+f`           | search file contents            |
 | `,`                | settings                        |

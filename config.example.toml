@@ -75,6 +75,7 @@ toggle_mode = ["m"]          # switch reader / source view
 toggle_all_files = ["a"]     # show all files / markdown only in sidebar
 toggle_hidden = ["."]        # show / hide dotfiles and dot-directories in sidebar
 toggle_line_numbers = ["n"]  # line numbers in source view, like vi's :set nu
+copy_path = ["y"]            # copy the open file's absolute path to the clipboard
 search = ["/"]               # find files by name
 search_content = ["ctrl+f"]  # find files by content
 # Inside the search prompt the keys are fixed: typed characters edit
