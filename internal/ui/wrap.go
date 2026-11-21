@@ -49,8 +49,8 @@ func expandTabs(line string) string {
 			n := tabStop - col%tabStop
 			b.WriteString(strings.Repeat(" ", n))
 			col += n
-		case r == 0x1b && i+1 < len(rs) && rs[i+1] == '[':
-			j := csiEnd(rs, i)
+		case r == 0x1b:
+			j := escEnd(rs, i)
 			b.WriteString(string(rs[i:j]))
 			i = j - 1
 		default:
@@ -61,18 +61,37 @@ func expandTabs(line string) string {
 	return b.String()
 }
 
-// csiEnd returns the index just past the CSI sequence starting at
-// rs[i], which is ESC '[' followed by parameter bytes and one final
-// byte in the range 0x40-0x7e.
-func csiEnd(rs []rune, i int) int {
-	j := i + 2
-	for j < len(rs) && (rs[j] < 0x40 || rs[j] > 0x7e) {
-		j++
+// escEnd returns the index just past the escape sequence starting at
+// rs[i] (an ESC). A CSI sequence (ESC '[') runs to its final byte in
+// 0x40-0x7e; an OSC sequence (ESC ']'), which is how glamour writes a
+// hyperlink with its URL inside, runs to BEL or ST (ESC \); any
+// other escape is two runes long.
+func escEnd(rs []rune, i int) int {
+	if i+1 >= len(rs) {
+		return i + 1
 	}
-	if j < len(rs) {
-		j++
+	switch rs[i+1] {
+	case '[':
+		j := i + 2
+		for j < len(rs) && (rs[j] < 0x40 || rs[j] > 0x7e) {
+			j++
+		}
+		if j < len(rs) {
+			j++
+		}
+		return j
+	case ']':
+		for j := i + 2; j < len(rs); j++ {
+			if rs[j] == 0x07 {
+				return j + 1
+			}
+			if rs[j] == 0x1b && j+1 < len(rs) && rs[j+1] == '\\' {
+				return j + 2
+			}
+		}
+		return len(rs)
 	}
-	return j
+	return i + 2
 }
 
 // hardWrapLines folds every line of already laid-out text that is
@@ -184,8 +203,8 @@ func splitAt(text string, cols int) (string, string, int) {
 	w := 0
 	rs := []rune(text)
 	for i := 0; i < len(rs); i++ {
-		if rs[i] == 0x1b && i+1 < len(rs) && rs[i+1] == '[' {
-			i = csiEnd(rs, i) - 1
+		if rs[i] == 0x1b {
+			i = escEnd(rs, i) - 1
 			continue
 		}
 		rw := runewidth.RuneWidth(rs[i])
@@ -197,7 +216,7 @@ func splitAt(text string, cols int) (string, string, int) {
 	return text, "", w
 }
 
-// tokenize splits line into tokens. A CSI escape sequence is a token
+// tokenize splits line into tokens. An escape sequence is a token
 // of width zero; a run of spaces is a space token; a wide character
 // is a token of its own, together with any following marks that may
 // not begin a row and, when it may not end one, the character after
@@ -217,11 +236,11 @@ func tokenize(line string) []token {
 	for i := 0; i < len(rs); i++ {
 		r := rs[i]
 		switch {
-		case r == 0x1b && i+1 < len(rs) && rs[i+1] == '[':
+		case r == 0x1b:
 			// A sequence inside a word — highlighting colors part of
 			// it — stays in the word rather than becoming a place to
 			// break.
-			j := csiEnd(rs, i)
+			j := escEnd(rs, i)
 			if word.Len() > 0 {
 				word.WriteString(string(rs[i:j]))
 			} else {
