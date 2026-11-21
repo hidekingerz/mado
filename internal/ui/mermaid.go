@@ -19,6 +19,9 @@ const (
 	codeBlockIndent = 2
 )
 
+// mermaidRowGap is the number of rows between vertically adjacent nodes.
+const mermaidRowGap = 3
+
 // The drawing library reports layout trouble through logrus's global
 // logger, which by default writes to stderr — straight onto the
 // screen underneath the TUI. mado has nothing to say through logrus,
@@ -76,7 +79,16 @@ func closingFence(lines []string, from int) int {
 // drawMermaid draws src, reporting false when it cannot be drawn or
 // does not fit in maxWidth columns.
 func drawMermaid(src string, maxWidth int) (string, bool) {
-	drawn, err := render.RenderDiagram(src, diagram.DefaultConfig())
+	cfg := diagram.DefaultConfig()
+	// The library leaves five rows between stacked nodes, which with
+	// three-row boxes makes even a small flowchart taller than a
+	// screen. Three rows hold an arrow with its label, and an edge
+	// that bends on its way down; with two, a bent edge runs into the
+	// top of the box below (#49).
+	// Columns stay as they are: the horizontal gap carries edge labels
+	// in LR diagrams, and the box padding is shared by both axes.
+	cfg.PaddingBetweenY = mermaidRowGap
+	drawn, err := render.RenderDiagram(src, cfg)
 	if err != nil {
 		return "", false
 	}

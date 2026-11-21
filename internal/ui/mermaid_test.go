@@ -188,3 +188,15 @@ func TestSequenceWithNonASCIITextStillDraws(t *testing.T) {
 		t.Errorf("the sequence renderer handles wide text and should draw:\n%s", got)
 	}
 }
+
+// Nodes stacked top to bottom are three rows apart, not five, so a
+// small flowchart fits a screen (#49).
+func TestMermaidStacksNodesCompactly(t *testing.T) {
+	drawn, ok := drawMermaid("graph TD\n  A[Start] --> B[Check]\n  B --> C[Done]", 80)
+	if !ok {
+		t.Fatal("diagram should draw")
+	}
+	if lines := strings.Count(drawn, "\n") + 1; lines > 21 {
+		t.Errorf("3 stacked nodes take %d rows, want at most 21:\n%s", lines, drawn)
+	}
+}
