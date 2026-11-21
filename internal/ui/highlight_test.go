@@ -3,6 +3,10 @@ package ui
 import (
 	"strings"
 	"testing"
+
+	"github.com/charmbracelet/colorprofile"
+
+	"github.com/hidekingerz/mado/internal/config"
 )
 
 func TestHighlightSourceMarkdown(t *testing.T) {
@@ -80,6 +84,48 @@ func TestChromaStyleName(t *testing.T) {
 	for _, c := range cases {
 		if got := chromaStyleName(c.glamour, c.override, c.darkBG); got != c.want {
 			t.Errorf("chromaStyleName(%q, %q, %v) = %q, want %q", c.glamour, c.override, c.darkBG, got, c.want)
+		}
+	}
+}
+
+// Bubble Tea brings colors down to what the terminal shows when it
+// draws, so chroma always writes full color unless there is no color
+// at all (#35).
+func TestChromaFormatterFollowsProfile(t *testing.T) {
+	cases := map[colorprofile.Profile]string{
+		colorprofile.TrueColor: "terminal16m",
+		colorprofile.ANSI256:   "terminal16m",
+		colorprofile.ANSI:      "terminal16m",
+		colorprofile.Ascii:     "",
+		colorprofile.NoTTY:     "",
+	}
+	for p, want := range cases {
+		if got := chromaFormatterFor(p); got != want {
+			t.Errorf("chromaFormatterFor(%v) = %q, want %q", p, got, want)
+		}
+	}
+}
+
+// The terminal is asked for its background only when a setting depends
+// on it (#35).
+func TestNeedsBackground(t *testing.T) {
+	cases := []struct {
+		style, source string
+		want          bool
+	}{
+		{"auto", "", true},
+		{"", "", true},
+		{"auto", "monokai", true},
+		{"dark", "", false},
+		{"light", "", false},
+		{"dracula", "", false},
+		{"notty", "", false},
+		{"/path/to/custom.json", "", true},
+		{"/path/to/custom.json", "monokai", false},
+	}
+	for _, c := range cases {
+		if got := needsBackground(config.Theme{Style: c.style, SourceStyle: c.source}); got != c.want {
+			t.Errorf("needsBackground(%q, %q) = %v, want %v", c.style, c.source, got, c.want)
 		}
 	}
 }

@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -35,20 +34,15 @@ func chromaStyleName(glamourStyle, override string, darkBG bool) string {
 	}
 }
 
-// chromaFormatterName picks a chroma formatter for the terminal's color
-// capability. Queries the terminal — call once at startup only.
+// chromaFormatterFor picks a chroma formatter for the terminal's color
+// profile. Bubble Tea converts every color to the profile as it draws,
+// so full color is right for any terminal that shows color at all.
 // "" disables highlighting.
-func chromaFormatterName() string {
-	switch colorprofile.Detect(os.Stdout, os.Environ()) {
-	case colorprofile.TrueColor:
-		return "terminal16m"
-	case colorprofile.ANSI256:
-		return "terminal256"
-	case colorprofile.ANSI:
-		return "terminal16"
-	default:
+func chromaFormatterFor(p colorprofile.Profile) string {
+	if p == colorprofile.Ascii || p == colorprofile.NoTTY {
 		return ""
 	}
+	return "terminal16m"
 }
 
 // highlightSource syntax-highlights src, detecting the language from

@@ -46,10 +46,17 @@ func (m *Model) applyConfig(next config.Config) tea.Cmd {
 	m.cfg = next
 	m.keys = newKeyMap(next.Keys)
 
+	var bgCmd tea.Cmd
 	if next.Theme != prev.Theme {
 		m.styles = newStyles(next.Theme)
 		m.style = resolveStyle(next.Theme.Style, m.darkBG)
 		m.sourceStyle = chromaStyleName(m.style, next.Theme.SourceStyle, m.darkBG)
+		if needsBackground(next.Theme) && !m.bgKnown {
+			// The program is running, so ask through Bubble Tea
+			// rather than reading the tty under it; the answer
+			// arrives as a BackgroundColorMsg (setBackground).
+			bgCmd = tea.RequestBackgroundColor
+		}
 		if next.Theme.DefaultMode != prev.Theme.DefaultMode {
 			m.mode = modeReader
 			if next.Theme.DefaultMode == "source" {
@@ -104,5 +111,34 @@ func (m *Model) applyConfig(next config.Config) tea.Cmd {
 		m.watcher.Close()
 		m.watcher = nil
 	}
-	return cmd
+	return tea.Batch(cmd, bgCmd)
+}
+
+// setBackground records the terminal's background and, when the style
+// depends on it, re-renders the tabs in the style it now resolves to.
+func (m *Model) setBackground(dark bool) {
+	m.darkBG, m.bgKnown = dark, true
+	style := resolveStyle(m.cfg.Theme.Style, dark)
+	source := chromaStyleName(style, m.cfg.Theme.SourceStyle, dark)
+	if style == m.style && source == m.sourceStyle {
+		return
+	}
+	m.style, m.sourceStyle = style, source
+	for _, t := range m.tabs {
+		t.rendered = 0
+	}
+	m.ensureRendered(m.activeTab())
+}
+
+// needsBackground reports whether theme resolves differently on a dark
+// and a light terminal: the auto style, or a custom style file without
+// a source_style, whose highlighting follows the background.
+func needsBackground(theme config.Theme) bool {
+	switch theme.Style {
+	case "", "auto":
+		return true
+	case "dark", "light", "dracula", "notty", "ascii":
+		return false
+	}
+	return theme.SourceStyle == ""
 }

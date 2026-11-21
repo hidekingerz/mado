@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"image/color"
 	"strings"
 	"testing"
 
@@ -190,5 +191,31 @@ func TestWithConfigPath(t *testing.T) {
 	m = m.WithConfigPath("/tmp/x.toml")
 	if m.configPath != "/tmp/x.toml" {
 		t.Errorf("configPath = %q", m.configPath)
+	}
+}
+
+// Started with a fixed style, mado never asked for the background;
+// switching to auto asks then, and the answer picks the style (#35).
+func TestApplyConfigAutoAsksForTheBackground(t *testing.T) {
+	m := testModel(t, map[string]string{"a.md": "# A"}, "a.md")
+	before := m.tabs[0].content
+	next := m.cfg
+	next.Theme.Style = "auto"
+	cmd := m.applyConfig(next)
+	if cmd == nil {
+		t.Fatal("switching to auto should ask the terminal for its background")
+	}
+	if _, ok := cmd().(tea.BackgroundColorMsg); ok {
+		t.Fatal("the command should be a request, not an answer")
+	}
+	m = update(t, m, tea.BackgroundColorMsg{Color: color.White})
+	if m.style != "light" || m.sourceStyle != "catppuccin-latte" {
+		t.Errorf("after a light background: style = %q source = %q", m.style, m.sourceStyle)
+	}
+	if m.tabs[0].content == before {
+		t.Error("the open tab should be re-rendered in the new style")
+	}
+	if cmd := m.applyConfig(next); cmd != nil {
+		t.Error("the background is known now; no need to ask again")
 	}
 }
