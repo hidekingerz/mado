@@ -215,20 +215,22 @@ func TestSourceStyleFieldAcceptsEmpty(t *testing.T) {
 	}
 }
 
-func TestExcludeFieldSplitsOnSpaces(t *testing.T) {
+// The exclude list reads and writes like the key lists, comma separated
+// (#50); spaces still separate, as before.
+func TestExcludeFieldSplitsOnCommasAndSpaces(t *testing.T) {
 	c := Default()
 	f := field(t, "search", "exclude")
 	if f.Kind != KindList {
 		t.Fatalf("kind = %v, want KindList", f.Kind)
 	}
-	if err := f.Set(&c, "  node_modules  *.log docs/drafts "); err != nil {
+	if err := f.Set(&c, "  node_modules,  *.log docs/drafts, "); err != nil {
 		t.Fatal(err)
 	}
 	want := []string{"node_modules", "*.log", "docs/drafts"}
 	if !reflect.DeepEqual(c.Search.Exclude, want) {
 		t.Errorf("Exclude = %v, want %v", c.Search.Exclude, want)
 	}
-	if f.Get(&c) != "node_modules *.log docs/drafts" {
+	if f.Get(&c) != "node_modules, *.log, docs/drafts" {
 		t.Errorf("Get = %q", f.Get(&c))
 	}
 	if err := f.Set(&c, ""); err != nil {
