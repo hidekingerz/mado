@@ -157,6 +157,12 @@ func (m Model) renderSidebar() string {
 	var rows []string
 	for row := 0; row < innerH; row++ {
 		idx := m.treeOff + row
+		if row == 0 && len(m.items) == 0 {
+			// An empty tree says why; the content pane has the keys.
+			text := truncate(" "+m.emptyTreeTitle(), innerW)
+			rows = append(rows, m.styles.dimmed.Render(text+strings.Repeat(" ", innerW-lipgloss.Width(text))))
+			continue
+		}
 		if idx >= len(m.items) {
 			rows = append(rows, strings.Repeat(" ", innerW))
 			continue
@@ -240,9 +246,51 @@ func (m Model) renderContent() string {
 }
 
 func (m Model) renderWelcome(w, h int) string {
+	var text string
+	var keys [][2]string
+	if len(m.items) == 0 {
+		// Nothing in the sidebar to select: say why, and offer the
+		// filters that would show more (#44).
+		text = m.emptyTreeTitle()
+		if !m.treeOpts.ShowAllFiles {
+			keys = append(keys, [2]string{m.keys.ToggleAllFiles.Help().Key, "show all files"})
+		}
+		if !m.treeOpts.ShowHidden {
+			keys = append(keys, [2]string{m.keys.ToggleHidden.Help().Key, "show dotfiles"})
+		}
+	} else {
+		text = "Select a markdown file in the sidebar,\nor click one with the mouse."
+		keys = [][2]string{
+			{m.keys.Search.Help().Key, m.keys.Search.Help().Desc},
+			{m.keys.SearchContent.Help().Key, m.keys.SearchContent.Help().Desc},
+		}
+	}
+	keys = append(keys, [2]string{m.keys.Help.Help().Key, "help"})
+	keyW := 0
+	for _, k := range keys {
+		keyW = maxInt(keyW, lipgloss.Width(k[0]))
+	}
+	var b strings.Builder
+	for _, k := range keys {
+		b.WriteString("\n" + m.styles.accent.Render(padLine(k[0], keyW)) + "  " + m.styles.dimmed.Render(k[1]))
+	}
+	keyBlock := lipgloss.NewStyle().Align(lipgloss.Left).Render(strings.TrimPrefix(b.String(), "\n"))
 	msg := m.styles.accent.Bold(true).Render("mado") + "\n\n" +
-		m.styles.dimmed.Render("Select a markdown file in the sidebar,\nor click one with the mouse.\n\nPress "+m.keys.Help.Help().Key+" for help.")
+		m.styles.dimmed.Render(text) + "\n\n" + keyBlock
 	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, msg)
+}
+
+// emptyTreeTitle says why the sidebar has no rows, from the filters
+// that are on.
+func (m Model) emptyTreeTitle() string {
+	switch {
+	case !m.treeOpts.ShowAllFiles:
+		return "No markdown files here."
+	case !m.treeOpts.ShowHidden:
+		return "No files here."
+	default:
+		return "Nothing to show here."
+	}
 }
 
 func (m Model) renderHelp(w, h int) string {
