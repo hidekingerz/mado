@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 // Kind says how a field is edited and how its value is encoded.
@@ -53,7 +54,7 @@ func (f Field) Value(c *Config) any {
 		n, _ := strconv.Atoi(f.Get(c))
 		return n
 	case KindList:
-		return strings.Fields(f.Get(c))
+		return splitList(f.Get(c))
 	case KindKeys:
 		return append([]string(nil), (*f.keys(c))...)
 	default:
@@ -127,10 +128,10 @@ func Fields() []Field {
 	}
 	fs = append(fs, Field{
 		Table: "search", Key: "exclude", Kind: KindList,
-		Desc: "Patterns the search skips, separated by spaces; empty searches everything",
-		Get:  func(c *Config) string { return strings.Join(c.Search.Exclude, " ") },
+		Desc: "Patterns the search skips, comma separated; empty searches everything",
+		Get:  func(c *Config) string { return strings.Join(c.Search.Exclude, ", ") },
 		Set: func(c *Config, v string) error {
-			list := strings.Fields(v)
+			list := splitList(v)
 			if list == nil {
 				list = []string{} // an explicit "exclude = []", not an absent key
 			}
@@ -321,4 +322,10 @@ func keyOwner(c *Config, k string) string {
 		}
 	}
 	return ""
+}
+
+// splitList splits a list typed in the settings panel. Commas separate
+// items, as in the key lists; spaces do too, as they did before.
+func splitList(v string) []string {
+	return strings.FieldsFunc(v, func(r rune) bool { return r == ',' || unicode.IsSpace(r) })
 }
