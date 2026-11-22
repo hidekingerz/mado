@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -304,6 +305,34 @@ func candidates(dir string) []string {
 		paths[i] = s.path
 	}
 	return paths
+}
+
+// Prune removes the sockets in dir left by instances that are no
+// longer running: one named after a pid whose process has exited. An
+// instance that is killed, or whose terminal is closed under it,
+// cannot remove its own socket, so each new instance tidies up after
+// the ones before it. Sockets not named after a pid (MADO_SOCKET can
+// put any name there) and anything that is not our socket are left
+// alone.
+func Prune(dir string) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		pid, err := strconv.Atoi(strings.TrimSuffix(e.Name(), ".sock"))
+		if err != nil || pid <= 0 || !strings.HasSuffix(e.Name(), ".sock") || processRunning(pid) {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil || info.Mode()&os.ModeSocket == 0 {
+			continue
+		}
+		if ours, err := ownedByUs(info); err != nil || !ours {
+			continue
+		}
+		_ = os.Remove(filepath.Join(dir, e.Name()))
+	}
 }
 
 // ── paths ───────────────────────────────────────────────────────────

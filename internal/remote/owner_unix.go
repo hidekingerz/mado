@@ -3,11 +3,19 @@
 package remote
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"syscall"
 )
+
+// processRunning reports whether a process with this pid exists.
+// Signal 0 checks without delivering anything; only "no such process"
+// says it is gone — a process we may not signal is still running.
+func processRunning(pid int) bool {
+	return !errors.Is(syscall.Kill(pid, 0), syscall.ESRCH)
+}
 
 // ownedByUs reports whether info describes something owned by the user
 // running this process. Ownership is what keeps another local user from
