@@ -25,6 +25,9 @@ type General struct {
 	// Mermaid draws ```mermaid blocks as box-character diagrams in the
 	// reader view. On by default.
 	Mermaid bool `toml:"mermaid"`
+	// Language is the language of mado's own text: "en", "ja", or
+	// "auto" to follow the locale (LC_ALL, LC_MESSAGES, LANG).
+	Language string `toml:"language"`
 }
 
 // Theme controls markdown rendering style and UI colors.
@@ -98,8 +101,9 @@ type Keys struct {
 func Default() Config {
 	return Config{
 		General: General{
-			Watch:   false,
-			Mermaid: true,
+			Watch:    false,
+			Mermaid:  true,
+			Language: "auto",
 		},
 		Theme: Theme{
 			Style:       "auto",
@@ -195,6 +199,7 @@ func merge(dst *Config, src Config, defined func(key ...string) bool) {
 	if defined("general", "mermaid") {
 		dst.General.Mermaid = src.General.Mermaid
 	}
+	mergeStr(&dst.General.Language, src.General.Language)
 
 	mergeStr(&dst.Theme.Style, src.Theme.Style)
 	mergeStr(&dst.Theme.DefaultMode, src.Theme.DefaultMode)

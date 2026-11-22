@@ -309,3 +309,20 @@ func TestMermaidDefaultsOnAndCanBeTurnedOff(t *testing.T) {
 		t.Error("an absent key keeps mermaid on")
 	}
 }
+
+func TestLanguageDefaultsToAutoAndLoads(t *testing.T) {
+	if got := Default().General.Language; got != "auto" {
+		t.Fatalf("default language = %q, want auto", got)
+	}
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte("[general]\nlanguage = \"ja\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.General.Language != "ja" {
+		t.Errorf("language = %q, want ja", cfg.General.Language)
+	}
+}

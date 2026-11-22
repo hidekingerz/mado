@@ -30,7 +30,7 @@ func (m Model) View() tea.View {
 // render draws the whole screen.
 func (m Model) render() string {
 	if m.width == 0 || m.height == 0 {
-		return "loading…"
+		return m.text.Loading
 	}
 	var b strings.Builder
 	b.WriteString(m.renderTabBar())
@@ -127,7 +127,7 @@ func (m Model) tabRegions() []tabRegion {
 func (m Model) renderTabBar() string {
 	if len(m.tabs) == 0 {
 		title := m.styles.accent.Bold(true).Render(" mado ") +
-			m.styles.dimmed.Render(" tui markdown viewer")
+			m.styles.dimmed.Render(m.text.Tagline)
 		return padLine(title, m.width)
 	}
 	l := m.layoutTabBar()
@@ -254,19 +254,19 @@ func (m Model) renderWelcome(w, h int) string {
 		// filters that would show more (#44).
 		text = m.emptyTreeTitle()
 		if !m.treeOpts.ShowAllFiles {
-			keys = append(keys, [2]string{m.keys.ToggleAllFiles.Help().Key, "show all files"})
+			keys = append(keys, [2]string{m.keys.ToggleAllFiles.Help().Key, m.text.ShowAllFiles})
 		}
 		if !m.treeOpts.ShowHidden {
-			keys = append(keys, [2]string{m.keys.ToggleHidden.Help().Key, "show dotfiles"})
+			keys = append(keys, [2]string{m.keys.ToggleHidden.Help().Key, m.text.ShowDotfiles})
 		}
 	} else {
-		text = "Select a markdown file in the sidebar,\nor click one with the mouse."
+		text = m.text.Welcome
 		keys = [][2]string{
 			{m.keys.Search.Help().Key, m.keys.Search.Help().Desc},
 			{m.keys.SearchContent.Help().Key, m.keys.SearchContent.Help().Desc},
 		}
 	}
-	keys = append(keys, [2]string{m.keys.Help.Help().Key, "help"})
+	keys = append(keys, [2]string{m.keys.Help.Help().Key, m.text.Help})
 	keyW := 0
 	for _, k := range keys {
 		keyW = maxInt(keyW, lipgloss.Width(k[0]))
@@ -286,11 +286,11 @@ func (m Model) renderWelcome(w, h int) string {
 func (m Model) emptyTreeTitle() string {
 	switch {
 	case !m.treeOpts.ShowAllFiles:
-		return "No markdown files here."
+		return m.text.EmptyNoMarkdown
 	case !m.treeOpts.ShowHidden:
-		return "No files here."
+		return m.text.EmptyNoFiles
 	default:
-		return "Nothing to show here."
+		return m.text.EmptyNothing
 	}
 }
 
@@ -328,14 +328,14 @@ func (m Model) renderHelp(w, h int) string {
 		}
 	}
 	var b strings.Builder
-	b.WriteString(m.styles.accent.Bold(true).Render("Keyboard shortcuts"))
+	b.WriteString(m.styles.accent.Bold(true).Render(m.text.HelpTitle))
 	b.WriteString("\n\n")
 	for _, r := range rows {
 		pad := strings.Repeat(" ", keyW-lipgloss.Width(r[0]))
 		b.WriteString("  " + m.styles.accent.Render(r[0]) + pad + "  " + r[1] + "\n")
 	}
-	b.WriteString("\n" + m.styles.dimmed.Render("Search: type to filter, tab switches names/contents,\n↑/↓ select, enter opens, esc closes."))
-	b.WriteString("\n\n" + m.styles.dimmed.Render("Mouse: click to select/open, wheel to scroll,\nclick a tab to switch, ✕ to close."))
+	b.WriteString("\n" + m.styles.dimmed.Render(m.text.HelpSearch))
+	b.WriteString("\n\n" + m.styles.dimmed.Render(m.text.HelpMouse))
 	// Place centers each line of a multi-line string on its own, which
 	// would scatter the key column; padding every line to the block's
 	// width first makes the block move as one.
@@ -367,7 +367,7 @@ func (m Model) renderStatusBar() string {
 		case m.configPath != "":
 			path = tildePath(m.configPath)
 		default:
-			suffix = "not saved"
+			suffix = m.text.NotSaved
 		}
 	} else {
 		if m.search.open {
@@ -384,7 +384,7 @@ func (m Model) renderStatusBar() string {
 			path = m.displayPath(t.path)
 			suffix = fmt.Sprintf("  %3.0f%%", t.vp.ScrollPercent()*100)
 			if t.renderErr != "" {
-				suffix += "  [render error: " + t.renderErr + "]"
+				suffix += "  " + fmt.Sprintf(m.text.RenderErrorF, t.renderErr)
 			}
 		} else {
 			path = tildePath(m.root.Path)
@@ -399,9 +399,9 @@ func (m Model) renderStatusBar() string {
 	// path and suffix carry names from disk and error messages.
 	path = termsafe.String(path)
 	suffix = termsafe.String(suffix)
-	right := m.keys.Help.Help().Key + " help │ " + m.keys.Quit.Help().Key + " quit "
+	right := m.keys.Help.Help().Key + " " + m.text.BarHelp + " │ " + m.keys.Quit.Help().Key + " " + m.text.BarQuit + " "
 	if m.search.open {
-		right = "enter open │ tab " + m.search.target.Toggle().String() + " │ esc close "
+		right = fmt.Sprintf(m.text.SearchBarHintF, m.targetName(m.search.target.Toggle()))
 	}
 	if m.settings.open {
 		right = m.settingsHint()

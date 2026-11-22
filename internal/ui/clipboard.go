@@ -9,11 +9,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-const (
-	noFileToCopyMsg = "no file open to copy"
-	copiedPathMsg   = "✓ copied path"
-)
-
 // copyToClipboard puts s on the system clipboard two ways: OSC 52,
 // which the terminal carries to its own clipboard even over ssh, and
 // the platform's copy command, for terminals (or a tmux left at its

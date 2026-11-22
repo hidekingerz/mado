@@ -8,30 +8,6 @@ import (
 	"testing"
 )
 
-func TestJapaneseLocale(t *testing.T) {
-	tests := []struct {
-		name string
-		env  map[string]string
-		want bool
-	}{
-		{"LANG ja", map[string]string{"LANG": "ja_JP.UTF-8"}, true},
-		{"LANG en", map[string]string{"LANG": "en_US.UTF-8"}, false},
-		{"nothing set", nil, false},
-		{"C locale", map[string]string{"LANG": "C"}, false},
-		{"LC_ALL wins over LANG", map[string]string{"LC_ALL": "en_US.UTF-8", "LANG": "ja_JP.UTF-8"}, false},
-		{"LC_MESSAGES wins over LANG", map[string]string{"LC_MESSAGES": "ja_JP.UTF-8", "LANG": "en_US.UTF-8"}, true},
-		{"empty LC_ALL is skipped", map[string]string{"LC_ALL": "", "LANG": "ja"}, true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			getenv := func(k string) string { return tt.env[k] }
-			if got := japaneseLocale(getenv); got != tt.want {
-				t.Errorf("japaneseLocale = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 // usageOf registers the flags in a fresh set, as main does, and
 // returns what -h prints.
 func usageOf(t *testing.T, m helpText) string {

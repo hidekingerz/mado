@@ -44,7 +44,10 @@ func newStyles(th config.Theme) styles {
 func (m *Model) applyConfig(next config.Config) tea.Cmd {
 	prev := m.cfg
 	m.cfg = next
-	m.keys = newKeyMap(next.Keys)
+	if next.General.Language != prev.General.Language {
+		m.text = textFor(next.General.Language)
+	}
+	m.keys = newKeyMap(next.Keys, m.text)
 
 	var bgCmd tea.Cmd
 	if next.Theme != prev.Theme {
@@ -101,7 +104,7 @@ func (m *Model) applyConfig(next config.Config) tea.Cmd {
 	case next.General.Watch && m.watcher == nil:
 		w, err := watch.New(watch.DefaultDebounce)
 		if err != nil {
-			m.statusMsg = "watch disabled: " + err.Error()
+			m.statusMsg = m.text.WatchDisabled + err.Error()
 		} else {
 			m.watcher = w
 			m.syncWatch()

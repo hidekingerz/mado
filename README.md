@@ -40,6 +40,7 @@ to help you find your way around.
 - **TOML configuration** — `~/.config/mado/config.toml`
 - **Configurable keyboard shortcuts** — every action can be rebound
 - **Settings panel** — `,` opens every setting for editing in place; changes apply at once and are written back to the config file, one key at a time, leaving comments alone
+- **English and Japanese** — help, hints, panels and messages follow the locale, or `language = "en"` / `"ja"`; so does `mado -h`
 - **Theme customization** — Glamour styles (`auto`, `dark`, `light`, `dracula`, or your own style JSON) plus UI colors and a `source_style` for source-mode highlighting
 
 ## Install
@@ -285,6 +286,7 @@ annotated reference.
 [general]
 watch = false              # true = auto-reload files when they change
 mermaid = true             # draw ```mermaid blocks in the reader view
+language = "auto"          # "en", "ja", or "auto" to follow the locale
 
 [theme]
 style = "dracula"          # glamour style name or path to a style JSON

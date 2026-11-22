@@ -267,8 +267,8 @@ func (m Model) renderSettings(w, h int) string {
 	s := m.settings
 	rows := make([]string, 0, h)
 
-	title := m.styles.accent.Bold(true).Render("Settings")
-	where := "not saved: no config path"
+	title := m.styles.accent.Bold(true).Render(m.text.SettingsTitle)
+	where := m.text.NotSavedNoPath
 	if m.configPath != "" {
 		// The path came from a flag or the environment: show it, do
 		// not obey it.
@@ -327,7 +327,7 @@ func (m Model) renderSettingsRow(r settingsRow, keyW, w int, selected bool) stri
 	case selected && m.settings.editing == editPick:
 		return clip(name+m.renderSettingsPicker(f, valueW), w)
 	case selected && m.settings.editing == editCapture:
-		return m.styles.selection.Render(padLine(truncate(name+value+"  press a key…", w), w))
+		return m.styles.selection.Render(padLine(truncate(name+value+"  "+m.text.PressAKey, w), w))
 	case selected:
 		return m.styles.selection.Render(padLine(truncate(name+value, w), w))
 	case value != f.Default():
@@ -381,10 +381,10 @@ func (m Model) renderSettingsFooter(w int) string {
 	}
 	def := f.Default()
 	if def == "" {
-		def = "(empty)"
+		def = m.text.Empty
 	}
-	suffix := "  ·  default: " + def
-	desc := truncate(f.Desc, maxInt(w-1-lipgloss.Width(suffix), 0))
+	suffix := "  ·  " + m.text.DefaultLabel + def
+	desc := truncate(m.text.FieldDesc(f.Table, f.Key, f.Desc), maxInt(w-1-lipgloss.Width(suffix), 0))
 	return m.styles.dimmed.Render(" " + desc + suffix)
 }
 
@@ -393,15 +393,15 @@ func (m Model) renderSettingsFooter(w int) string {
 func (m Model) settingsHint() string {
 	switch m.settings.editing {
 	case editText:
-		return "enter apply │ esc cancel "
+		return m.text.HintApply
 	case editCapture:
-		return "press a key │ ctrl+c quit "
+		return m.text.HintCapturing
 	case editPick:
-		return "↑/↓ choose │ enter apply │ esc cancel "
+		return m.text.HintPick
 	}
-	tail := "esc close "
+	tail := m.text.HintClose
 	if m.settings.undo != nil {
-		tail = "u undo │ " + tail
+		tail = m.text.HintUndo + tail
 	}
 	f, ok := m.selectedSetting()
 	if !ok {
@@ -409,13 +409,13 @@ func (m Model) settingsHint() string {
 	}
 	switch f.Kind {
 	case config.KindBool:
-		return "enter toggle │ " + tail
+		return m.text.HintToggle + tail
 	case config.KindEnum:
-		return "enter choose │ ←/→ change │ " + tail
+		return m.text.HintChoose + tail
 	case config.KindKeys:
-		return "enter capture │ backspace remove │ " + tail
+		return m.text.HintCapture + tail
 	default:
-		return "enter edit │ " + tail
+		return m.text.HintEdit + tail
 	}
 }
 
@@ -623,10 +623,10 @@ func (m *Model) commitSetting(f config.Field, change func(*config.Config) error)
 // says what happened.
 func (m *Model) saveSetting(f config.Field) {
 	if m.configPath == "" {
-		m.statusMsg = "not saved: no config path"
+		m.statusMsg = m.text.NotSavedNoPath
 		return
 	}
 	if err := config.Update(m.configPath, f.Table, f.Key, f.Value(&m.cfg)); err != nil {
-		m.statusMsg = "save failed: " + err.Error()
+		m.statusMsg = m.text.SaveFailed + err.Error()
 	}
 }

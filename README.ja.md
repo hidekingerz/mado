@@ -36,6 +36,7 @@
 - **TOML 設定** — `~/.config/mado/config.toml`
 - **キーバインドの設定変更** — すべての操作を再割り当てできます
 - **設定パネル** — `,` を押すと、すべての設定をその場で編集できるパネルが開きます。変更は即座に反映され、コメントはそのままに設定ファイルへ1キーずつ書き戻されます
+- **英語と日本語** — ヘルプ、ヒント、パネル、メッセージはロケールに従います。`language = "en"` / `"ja"` で固定もできます。`mado -h` もロケールに従います
 - **テーマのカスタマイズ** — Glamour スタイル（`auto`、`dark`、`light`、`dracula`、または任意のスタイル JSON）に加え、UI カラーとソースモード用ハイライトの `source_style`
 
 ## インストール
@@ -185,6 +186,7 @@ mado は `$XDG_CONFIG_HOME/mado/config.toml`（既定では
 [general]
 watch = false              # true = ファイル変更時に自動で再読み込み
 mermaid = true             # ```mermaid ブロックをリーダービューに描画
+language = "auto"          # "en"、"ja"、またはロケールに従う "auto"
 
 [theme]
 style = "dracula"          # glamour のスタイル名、またはスタイル JSON へのパス

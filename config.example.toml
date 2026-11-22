@@ -15,6 +15,9 @@ watch = false
 # view (flowcharts, sequence diagrams, and more). A block that cannot be
 # drawn, or is wider than the pane, is shown as source instead.
 mermaid = true
+# Language of mado's own text (help, settings, messages): "en", "ja",
+# or "auto" to follow the locale (LC_ALL, LC_MESSAGES, LANG).
+language = "auto"
 
 [theme]
 # Glamour markdown style: "auto", "dark", "light", "dracula", "notty",
