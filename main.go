@@ -36,17 +36,12 @@ func versionString() string {
 }
 
 func main() {
-	configPath := flag.String("config", config.DefaultPath(), "path to config.toml")
-	style := flag.String("style", "", "glamour style (overrides config): auto, dark, light, dracula, … or a style JSON path")
-	watchFiles := flag.Bool("watch", false, "reload open files and the tree automatically when they change on disk")
-	remoteCmd := flag.String("remote", "", "hand the file arguments to a running mado instead of starting a new one: open or focus")
-	showVersion := flag.Bool("version", false, "print version and exit")
-	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "usage: mado [flags] [dir | file ...]\n\n")
-		fmt.Fprintf(flag.CommandLine.Output(), "Opens a markdown viewer rooted at dir (default: current directory).\n")
-		fmt.Fprintf(flag.CommandLine.Output(), "Any file arguments are opened in tabs.\n\nflags:\n")
-		flag.PrintDefaults()
+	help := helpEN
+	if japaneseLocale(os.Getenv) {
+		help = helpJA
 	}
+	opts := registerFlags(flag.CommandLine, help, config.DefaultPath())
+	configPath, style, watchFiles, remoteCmd, showVersion := opts.configPath, opts.style, opts.watch, opts.remote, opts.showVersion
 	flag.Parse()
 
 	if *showVersion {
