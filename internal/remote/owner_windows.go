@@ -8,3 +8,6 @@ import "io/fs"
 // per-user and guards it with ACLs rather than a uid, so there is
 // nothing to compare here.
 func ownedByUs(fs.FileInfo) (bool, error) { return true, nil }
+
+// processRunning is not checked on Windows: Prune keeps every socket.
+func processRunning(int) bool { return true }

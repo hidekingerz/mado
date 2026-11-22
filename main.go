@@ -7,8 +7,10 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime/debug"
+	"syscall"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -92,7 +94,18 @@ func main() {
 		fatal(err)
 	}
 	m = m.WithConfigPath(*configPath)
-	if srv, err := remote.Listen(remote.DefaultPath()); err != nil {
+	os.Exit(run(m))
+}
+
+// run serves remote commands and runs the program until it ends,
+// returning the exit status. From the moment the socket exists every
+// way out goes through here, so the socket is removed however mado
+// stops — short of SIGKILL, which the next instance tidies up after
+// (remote.Prune).
+func run(m ui.Model) int {
+	remote.Prune(remote.DefaultDir())
+	srv, err := remote.Listen(remote.DefaultPath())
+	if err != nil {
 		warn(fmt.Errorf("remote commands disabled: %w", err))
 	} else {
 		defer srv.Close()
@@ -100,9 +113,30 @@ func main() {
 	}
 
 	p := tea.NewProgram(m)
+	// Closing the terminal or the pane sends SIGHUP, which Bubble Tea
+	// does not handle and which would otherwise end the process on
+	// the spot. There is no terminal left to restore, so stop at once.
+	hup := make(chan os.Signal, 1)
+	signal.Notify(hup, syscall.SIGHUP)
+	defer signal.Stop(hup)
+	hungUp := make(chan struct{})
+	go func() {
+		if _, ok := <-hup; ok {
+			close(hungUp)
+			p.Kill()
+		}
+	}()
+
 	if _, err := p.Run(); err != nil {
-		fatal(err)
+		select {
+		case <-hungUp:
+			return 0
+		default:
+		}
+		warn(err)
+		return 1
 	}
+	return 0
 }
 
 // fatal reports an error and exits. Diagnostics carry file names and
