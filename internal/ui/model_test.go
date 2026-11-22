@@ -19,7 +19,8 @@ import (
 func testModel(t *testing.T, files map[string]string, open ...string) Model {
 	t.Helper()
 	cfg := config.Default()
-	cfg.Theme.Style = "notty" // deterministic in tests, no terminal probing
+	cfg.Theme.Style = "notty"   // deterministic in tests, no terminal probing
+	cfg.General.Language = "en" // not the locale of the machine running the tests
 	return testModelWithConfig(t, cfg, files, open...)
 }
 

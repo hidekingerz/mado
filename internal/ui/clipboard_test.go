@@ -42,11 +42,11 @@ func TestCopyPathCopiesTheActiveTabsAbsolutePath(t *testing.T) {
 	if cmd == nil {
 		t.Error("copy path returned no command; nothing would reach the clipboard")
 	}
-	if m.notice != copiedPathMsg || m.statusMsg != "" {
+	if m.notice != m.text.CopiedPath || m.statusMsg != "" {
 		t.Errorf("notice = %q, statusMsg = %q; want the copy confirmed as a notice, not a warning", m.notice, m.statusMsg)
 	}
-	if bar := m.renderStatusBar(); !strings.Contains(bar, copiedPathMsg) || strings.Contains(bar, "⚠") {
-		t.Errorf("status bar = %q, want %q without a warning sign", bar, copiedPathMsg)
+	if bar := m.renderStatusBar(); !strings.Contains(bar, m.text.CopiedPath) || strings.Contains(bar, "⚠") {
+		t.Errorf("status bar = %q, want %q without a warning sign", bar, m.text.CopiedPath)
 	}
 
 	m = update(t, m, tea.KeyPressMsg{Code: 'j', Text: "j"})
@@ -64,8 +64,8 @@ func TestCopyPathWithNoTabSaysSo(t *testing.T) {
 	if len(*copied) != 0 {
 		t.Errorf("copied = %q with no tab open, want nothing", *copied)
 	}
-	if m.statusMsg != noFileToCopyMsg {
-		t.Errorf("statusMsg = %q, want %q", m.statusMsg, noFileToCopyMsg)
+	if m.statusMsg != m.text.NoFileToCopy {
+		t.Errorf("statusMsg = %q, want %q", m.statusMsg, m.text.NoFileToCopy)
 	}
 }
 

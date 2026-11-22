@@ -44,18 +44,6 @@ var helpJA = helpText{
 	Version: "バージョンを表示して終了",
 }
 
-// japaneseLocale reports whether the user's locale asks for Japanese.
-// The first of LC_ALL, LC_MESSAGES and LANG that is set decides, as
-// it does for any program that reads the locale.
-func japaneseLocale(getenv func(string) string) bool {
-	for _, k := range []string{"LC_ALL", "LC_MESSAGES", "LANG"} {
-		if v := getenv(k); v != "" {
-			return strings.HasPrefix(v, "ja")
-		}
-	}
-	return false
-}
-
 // options holds the parsed command-line flags.
 type options struct {
 	configPath  *string

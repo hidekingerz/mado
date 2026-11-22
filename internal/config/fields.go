@@ -20,6 +20,9 @@ const (
 	KindKeys             // key names bound to an action
 )
 
+// Languages are the values general.language takes.
+var Languages = []string{"auto", "en", "ja"}
+
 // CustomOption is the last option of an enum that also accepts a value
 // of the user's own; choosing it asks for that value as text.
 const CustomOption = "custom…"
@@ -70,6 +73,22 @@ func Fields() []Field {
 			func(c *Config) *bool { return &c.General.Watch }),
 		boolField("general", "mermaid", "Draw mermaid code blocks as diagrams in the reader view",
 			func(c *Config) *bool { return &c.General.Mermaid }),
+		{
+			Table: "general", Key: "language", Kind: KindEnum,
+			Desc:    "Language of mado's own text; auto follows the locale",
+			Options: Languages,
+			Get:     func(c *Config) string { return c.General.Language },
+			Set: func(c *Config, v string) error {
+				v = strings.TrimSpace(v)
+				for _, l := range Languages {
+					if v == l {
+						c.General.Language = v
+						return nil
+					}
+				}
+				return fmt.Errorf("language must be one of %s, not %q", strings.Join(Languages, ", "), v)
+			},
+		},
 		{
 			Table: "theme", Key: "style", Kind: KindEnum,
 			Desc:    "Glamour markdown style, or a path to a style JSON file",

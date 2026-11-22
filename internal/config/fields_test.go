@@ -339,3 +339,28 @@ func TestAddKeyDoesNotAliasAnotherConfig(t *testing.T) {
 		t.Errorf("a copy of the config must not see the edit: %v", b.Keys.Reload)
 	}
 }
+
+func TestLanguageField(t *testing.T) {
+	var f Field
+	for _, x := range Fields() {
+		if x.Table == "general" && x.Key == "language" {
+			f = x
+		}
+	}
+	if f.Key == "" {
+		t.Fatal("no general.language field")
+	}
+	if f.Kind != KindEnum || !reflect.DeepEqual(f.Options, []string{"auto", "en", "ja"}) {
+		t.Errorf("language field = kind %v options %v, want an enum of auto, en, ja", f.Kind, f.Options)
+	}
+	c := Default()
+	if err := f.Set(&c, "ja"); err != nil || c.General.Language != "ja" {
+		t.Errorf("Set ja: err %v, language %q", err, c.General.Language)
+	}
+	if err := f.Set(&c, "fr"); err == nil {
+		t.Error("Set fr: want an error for a language mado does not have")
+	}
+	if c.General.Language != "ja" {
+		t.Errorf("a rejected value changed language to %q", c.General.Language)
+	}
+}

@@ -479,6 +479,14 @@ func countMatches(s, query string) int {
 
 // ── rendering ───────────────────────────────────────────────────────
 
+// targetName names what a search looks through, as the hints say it.
+func (m Model) targetName(t search.Target) string {
+	if t == search.Contents {
+		return m.text.TargetContents
+	}
+	return m.text.TargetNames
+}
+
 // searchSummary describes the state of the result list in a few words.
 func (m Model) searchSummary() string {
 	s := m.search
@@ -486,15 +494,15 @@ func (m Model) searchSummary() string {
 	case s.query == "":
 		return ""
 	case s.pending && len(s.results) == 0:
-		return "searching…"
+		return m.text.Searching
 	case s.truncated:
-		return fmt.Sprintf("%d+ matches", len(s.results))
+		return fmt.Sprintf(m.text.MatchesMoreF, len(s.results))
 	case len(s.results) == 0:
-		return "no matches"
+		return m.text.NoMatches
 	case len(s.results) == 1:
-		return "1 match"
+		return m.text.OneMatch
 	default:
-		return fmt.Sprintf("%d matches", len(s.results))
+		return fmt.Sprintf(m.text.MatchesF, len(s.results))
 	}
 }
 
@@ -502,11 +510,15 @@ func (m Model) renderSearch(w, h int) string {
 	s := m.search
 	rows := make([]string, 0, h)
 
-	title := m.styles.accent.Bold(true).Render("Search " + s.target.String())
+	heading := m.text.SearchNames
+	if s.target == search.Contents {
+		heading = m.text.SearchContents
+	}
+	title := m.styles.accent.Bold(true).Render(heading)
 	if sum := m.searchSummary(); sum != "" {
 		title += "  " + m.styles.dimmed.Render(sum)
 	}
-	hint := m.styles.dimmed.Render("tab: " + s.target.Toggle().String())
+	hint := m.styles.dimmed.Render(fmt.Sprintf(m.text.TabHintF, m.targetName(s.target.Toggle())))
 	gap := w - 1 - lipgloss.Width(title) - lipgloss.Width(hint)
 	if gap < 1 {
 		hint = ""
@@ -521,11 +533,11 @@ func (m Model) renderSearch(w, h int) string {
 
 	listH := h - searchHeaderRows
 	if s.query == "" && listH > 0 {
-		what := "file names"
+		hint := " " + m.text.SearchHintNames
 		if s.target == search.Contents {
-			what = "file contents"
+			hint = " " + m.text.SearchHintContents
 		}
-		rows = append(rows, clip(m.styles.dimmed.Render(" Type to search "+what+". tab switches to "+s.target.Toggle().String()+", enter opens, esc closes."), w))
+		rows = append(rows, clip(m.styles.dimmed.Render(hint), w))
 		listH--
 	} else if s.err != "" && listH > 0 {
 		rows = append(rows, clip(m.styles.dimmed.Render(" ⚠ "+termsafe.String(s.err)), w))
@@ -578,11 +590,11 @@ func (m Model) renderSearchRow(r search.Match, numW, w int, selected bool) strin
 // and how many there are.
 func (m Model) renderSearchHeading(r search.Match, count, w int) string {
 	// Spelled out, so the count does not read as a line number.
-	tail := fmt.Sprintf("  %d matches", count)
+	tail := "  " + fmt.Sprintf(m.text.MatchesF, count)
 	if count == 1 {
-		tail = "  1 match"
+		tail = "  " + m.text.OneMatch
 	}
-	rel := truncateLeft(termsafe.String(r.Rel), maxInt(w-1-len(tail), 1))
+	rel := truncateLeft(termsafe.String(r.Rel), maxInt(w-1-lipgloss.Width(tail), 1))
 	return clip(" "+m.styles.dir.Render(rel)+m.styles.dimmed.Render(tail), w)
 }
 

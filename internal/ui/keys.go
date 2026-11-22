@@ -4,6 +4,7 @@ import (
 	"charm.land/bubbles/v2/key"
 
 	"github.com/hidekingerz/mado/internal/config"
+	"github.com/hidekingerz/mado/internal/i18n"
 )
 
 type keyMap struct {
@@ -32,35 +33,35 @@ type keyMap struct {
 	Help           key.Binding
 }
 
-func newKeyMap(k config.Keys) keyMap {
+func newKeyMap(k config.Keys, t *i18n.Text) keyMap {
 	bind := func(keys []string, help string) key.Binding {
 		keys = keyNames(keys)
 		return key.NewBinding(key.WithKeys(keys...), key.WithHelp(joinKeys(keys), help))
 	}
 	return keyMap{
-		Quit:           bind(k.Quit, "quit"),
-		Up:             bind(k.Up, "up"),
-		Down:           bind(k.Down, "down"),
-		Open:           bind(k.Open, "open / expand"),
-		Back:           bind(k.Back, "focus sidebar"),
-		CloseTab:       bind(k.CloseTab, "close tab"),
-		NextTab:        bind(k.NextTab, "next tab"),
-		PrevTab:        bind(k.PrevTab, "previous tab"),
-		ToggleSidebar:  bind(k.ToggleSidebar, "toggle sidebar"),
-		HalfPageDown:   bind(k.HalfPageDown, "half page down"),
-		HalfPageUp:     bind(k.HalfPageUp, "half page up"),
-		Top:            bind(k.Top, "go to top"),
-		Bottom:         bind(k.Bottom, "go to bottom"),
-		Reload:         bind(k.Reload, "reload"),
-		ToggleMode:     bind(k.ToggleMode, "reader/source mode"),
-		ToggleAllFiles: bind(k.ToggleAllFiles, "all files / markdown only"),
-		ToggleHidden:   bind(k.ToggleHidden, "show / hide dotfiles"),
-		ToggleLineNums: bind(k.ToggleLineNums, "line numbers"),
-		CopyPath:       bind(k.CopyPath, "copy file path"),
-		Search:         bind(k.Search, "search file names"),
-		SearchContent:  bind(k.SearchContent, "search file contents"),
-		Settings:       bind(k.Settings, "settings"),
-		Help:           bind(k.Help, "toggle help"),
+		Quit:           bind(k.Quit, t.KeyQuit),
+		Up:             bind(k.Up, t.KeyUp),
+		Down:           bind(k.Down, t.KeyDown),
+		Open:           bind(k.Open, t.KeyOpen),
+		Back:           bind(k.Back, t.KeyBack),
+		CloseTab:       bind(k.CloseTab, t.KeyCloseTab),
+		NextTab:        bind(k.NextTab, t.KeyNextTab),
+		PrevTab:        bind(k.PrevTab, t.KeyPrevTab),
+		ToggleSidebar:  bind(k.ToggleSidebar, t.KeyToggleSidebar),
+		HalfPageDown:   bind(k.HalfPageDown, t.KeyHalfPageDown),
+		HalfPageUp:     bind(k.HalfPageUp, t.KeyHalfPageUp),
+		Top:            bind(k.Top, t.KeyTop),
+		Bottom:         bind(k.Bottom, t.KeyBottom),
+		Reload:         bind(k.Reload, t.KeyReload),
+		ToggleMode:     bind(k.ToggleMode, t.KeyToggleMode),
+		ToggleAllFiles: bind(k.ToggleAllFiles, t.KeyToggleAllFiles),
+		ToggleHidden:   bind(k.ToggleHidden, t.KeyToggleHidden),
+		ToggleLineNums: bind(k.ToggleLineNums, t.KeyToggleLineNo),
+		CopyPath:       bind(k.CopyPath, t.KeyCopyPath),
+		Search:         bind(k.Search, t.KeySearch),
+		SearchContent:  bind(k.SearchContent, t.KeySearchContent),
+		Settings:       bind(k.Settings, t.KeySettings),
+		Help:           bind(k.Help, t.KeyHelp),
 	}
 }
 

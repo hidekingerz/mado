@@ -13,6 +13,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/hidekingerz/mado/internal/config"
+	"github.com/hidekingerz/mado/internal/i18n"
 	"github.com/hidekingerz/mado/internal/remote"
 	"github.com/hidekingerz/mado/internal/termsafe"
 	"github.com/hidekingerz/mado/internal/ui"
@@ -37,7 +38,8 @@ func versionString() string {
 
 func main() {
 	help := helpEN
-	if japaneseLocale(os.Getenv) {
+	// The config is not read yet, so -h follows the locale alone.
+	if i18n.Detect(os.Getenv) == i18n.JA {
 		help = helpJA
 	}
 	opts := registerFlags(flag.CommandLine, help, config.DefaultPath())

@@ -20,6 +20,7 @@ import (
 
 	"github.com/hidekingerz/mado/internal/config"
 	"github.com/hidekingerz/mado/internal/filetree"
+	"github.com/hidekingerz/mado/internal/i18n"
 	"github.com/hidekingerz/mado/internal/remote"
 	"github.com/hidekingerz/mado/internal/search"
 	"github.com/hidekingerz/mado/internal/termsafe"
@@ -44,9 +45,11 @@ const (
 	modeSource
 )
 
-// noReaderViewMsg starts the note shown when the mode key is pressed on
-// a tab that is not markdown; the new mode follows it.
-const noReaderViewMsg = "no reader view for this file; markdown tabs: "
+// textFor returns mado's text in the language setting names, "auto"
+// following the locale.
+func textFor(setting string) *i18n.Text {
+	return i18n.For(i18n.Resolve(setting, os.Getenv))
+}
 
 func (v viewMode) String() string {
 	if v == modeSource {
@@ -80,7 +83,7 @@ type tab struct {
 // setContent stores file data on the tab. Images become half-block
 // art tabs; other binary data is replaced with a placeholder so raw
 // control bytes never reach the terminal.
-func (t *tab) setContent(data []byte, profile colorprofile.Profile) {
+func (t *tab) setContent(data []byte, profile colorprofile.Profile, text *i18n.Text) {
 	t.img = nil
 	if hasImageExt(t.path) && (profile == colorprofile.TrueColor || profile == colorprofile.ANSI256) {
 		if img, err := decodeImage(data); err == nil {
@@ -92,7 +95,7 @@ func (t *tab) setContent(data []byte, profile colorprofile.Profile) {
 	}
 	if looksBinary(data) {
 		t.binary = true
-		t.raw = fmt.Sprintf("%s\n\nbinary file (%s) — not displayed", t.title, humanSize(len(data)))
+		t.raw = fmt.Sprintf(text.BinaryFileF, t.title, humanSize(len(data)))
 		return
 	}
 	t.binary = false
@@ -135,7 +138,8 @@ type Model struct {
 	showLineNums bool                 // vi :set nu for source-rendered content
 	showHelp     bool
 	statusMsg    string
-	notice       string // confirms an action; not a warning, gone on the next key
+	text         *i18n.Text // mado's own words, in general.language
+	notice       string     // confirms an action; not a warning, gone on the next key
 
 	tabs   []*tab
 	active int
@@ -196,9 +200,11 @@ func New(cfg config.Config, rootDir string, initialFiles []string) (Model, error
 	}
 	style := resolveStyle(cfg.Theme.Style, darkBG)
 	profile := colorprofile.Detect(os.Stdout, os.Environ())
+	text := textFor(cfg.General.Language)
 	m := Model{
 		cfg:         cfg,
-		keys:        newKeyMap(cfg.Keys),
+		text:        text,
+		keys:        newKeyMap(cfg.Keys, text),
 		root:        root,
 		treeOpts:    opts,
 		sidebar:     true,
@@ -218,7 +224,7 @@ func New(cfg config.Config, rootDir string, initialFiles []string) (Model, error
 		if err != nil {
 			// Auto-reload is a convenience; losing it should not stop
 			// mado from opening the files.
-			m.statusMsg = "watch disabled: " + err.Error()
+			m.statusMsg = m.text.WatchDisabled + err.Error()
 		} else {
 			m.watcher = w
 		}
@@ -499,8 +505,8 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		// The mode is shared by every tab, so it still flips here, but a
 		// plain text tab looks the same either way: say so (#48).
 		if t := m.activeTab(); t != nil && !filetree.IsMarkdown(t.path) {
-			m.statusMsg = noReaderViewMsg + m.mode.String()
-		} else if strings.HasPrefix(m.statusMsg, noReaderViewMsg) {
+			m.statusMsg = m.text.NoReaderView + m.mode.String()
+		} else if strings.HasPrefix(m.statusMsg, m.text.NoReaderView) {
 			m.statusMsg = ""
 		}
 		m.ensureRendered(m.activeTab())
@@ -516,10 +522,10 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, k.CopyPath):
 		t := m.activeTab()
 		if t == nil {
-			m.statusMsg = noFileToCopyMsg
+			m.statusMsg = m.text.NoFileToCopy
 			return m, nil
 		}
-		m.notice = copiedPathMsg
+		m.notice = m.text.CopiedPath
 		return m, copyToClipboard(t.path)
 	}
 	return m, nil
@@ -677,7 +683,7 @@ func (m *Model) openFile(path string) error {
 		path:  path,
 		title: termsafe.String(baseName(path)),
 	}
-	t.setContent(data, m.profile)
+	t.setContent(data, m.profile, m.text)
 	t.vp = viewport.New(viewport.WithWidth(m.contentInnerWidth()), viewport.WithHeight(m.contentInnerHeight()))
 	m.tabs = append(m.tabs, t)
 	m.active = len(m.tabs) - 1
@@ -779,7 +785,7 @@ func (m *Model) reload() {
 			}
 			continue
 		}
-		t.setContent(data, m.profile)
+		t.setContent(data, m.profile, m.text)
 		t.rendered = 0
 	}
 	m.ensureRendered(active)

@@ -93,13 +93,15 @@ func TestSettingsCursorSkipsHeadings(t *testing.T) {
 	m = update(t, m, keyRune(','))
 	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyDown})
 	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyDown})
+	m = update(t, m, tea.KeyPressMsg{Code: tea.KeyDown})
 	if got := selectedField(m); got != "style" {
-		t.Errorf("two downs from watch should skip [theme] and land on style, got %q", got)
+		t.Errorf("three downs from watch should skip [theme] and land on style, got %q", got)
 	}
 	m = update(t, m, keyRune('k'))
 	m = update(t, m, keyRune('k'))
+	m = update(t, m, keyRune('k'))
 	if got := selectedField(m); got != "watch" {
-		t.Errorf("k twice should move back up to watch, got %q", got)
+		t.Errorf("k three times should move back up to watch, got %q", got)
 	}
 	m = update(t, m, keyRune('k'))
 	if got := selectedField(m); got != "watch" {
@@ -188,13 +190,13 @@ func TestSettingsMouseSelectsAndScrolls(t *testing.T) {
 	m = update(t, m, keyRune(','))
 	x := m.sidebarWidth() + 2
 	// List rows start below the tab bar (1), the border (1) and the
-	// header (2). Rows: [general], watch, mermaid, [theme], style.
+	// header (2). Rows: [general], watch, mermaid, language, [theme], style.
 	top := tabBarHeight + 1 + settingsHeaderRows
-	m = update(t, m, tea.MouseClickMsg{X: x, Y: top + 4, Button: tea.MouseLeft})
+	m = update(t, m, tea.MouseClickMsg{X: x, Y: top + 5, Button: tea.MouseLeft})
 	if got := selectedField(m); got != "style" {
-		t.Errorf("click on row 4 should select style, got %q", got)
+		t.Errorf("click on row 5 should select style, got %q", got)
 	}
-	m = update(t, m, tea.MouseClickMsg{X: x, Y: top + 3, Button: tea.MouseLeft})
+	m = update(t, m, tea.MouseClickMsg{X: x, Y: top + 4, Button: tea.MouseLeft})
 	if got := selectedField(m); got != "style" {
 		t.Errorf("clicking a heading changes nothing, got %q", got)
 	}
