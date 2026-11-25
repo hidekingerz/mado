@@ -26,6 +26,7 @@ to help you find your way around.
 - **Sidebar file tree** rooted at the current directory (lazy-loaded, collapsible; `a` toggles between markdown-only and all files, `.` shows or hides dotfiles). The tree follows the file being viewed: opening a file or switching tabs expands its directories and moves the cursor onto it
 - **Multiple open files** — each file opens in its own tab
 - **File search** — `/` finds files by name, `ctrl+f` by content, as you type; a content hit opens the file scrolled to its line. Directories such as `node_modules` are skipped, and the list is configurable
+- **Follow local links** — `o` lists the links to local files in the open markdown file and opens the one you pick in a tab; a link to a `#heading` scrolls there
 - **Mouse support** — click files to open, click tabs to switch, click `✕` to close, scroll wheel in both panes
 
 ### Alongside other tools
@@ -138,6 +139,23 @@ slash matches a path relative to the root (`docs/drafts`). Setting the
 key replaces the default list, so `exclude = []` searches everything.
 The sidebar leaves out the same entries, so `.git` stays hidden even
 when dotfiles are shown.
+
+### Links
+
+Press `o` to list the local links of the open markdown file over the
+content pane. `↑`/`↓` (or `k`/`j`) select, `enter` opens the target in
+a tab, `esc` closes the list. Clicking a row opens it too.
+
+Only links to files on disk are listed: inline links such as
+`[text](other.md)`, reference-style links, and local images (which
+open as a preview tab). URLs such as `https://…` are left out. A
+relative path starts at the directory of the file it is written in; a
+path with a leading `/` starts at the root (the directory mado was
+started in). A link to a directory opens its `README.md` or
+`index.md`, and a name without an extension opens the `.md` file of
+that name. A link that names a heading — `other.md#setup`, or `#setup`
+within the same file — scrolls to that heading. Links whose target is
+not found are dimmed.
 
 ### Mouse
 
@@ -268,6 +286,7 @@ is refused with a note in the status bar and nothing changes.
 | `.`                | show / hide dotfiles            |
 | `n`                | toggle line numbers (source)    |
 | `y`                | copy the open file's path       |
+| `o`                | open a link in the file         |
 | `/`                | search file names               |
 | `ctrl+f`           | search file contents            |
 | `,`                | settings                        |
