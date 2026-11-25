@@ -97,6 +97,14 @@ func TestReportsAtomicReplace(t *testing.T) {
 // how the filesystem delivers its events — on a loaded CI runner they
 // can arrive in two clumps with a pause between — so the test asserts
 // nothing about the count.
+//
+// The test can only say "during the burst" while its own writes keep
+// to that spacing. A CI runner sometimes freezes the whole process for
+// longer than the debounce; the watcher then rightly sees the quiet it
+// waits for and reports, between two writes of what was meant to be
+// one burst. So the gaps between writes are measured, and a report
+// that follows a stalled gap discards the attempt instead of failing
+// the test.
 func TestCoalescesBurst(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "a.md")
@@ -105,16 +113,67 @@ func TestCoalescesBurst(t *testing.T) {
 	w := newTestWatcher(t, dir)
 	// Spread the burst over a few debounce windows, each write well
 	// inside the window after the previous one.
-	step := testDebounce / 4
+	const (
+		step     = testDebounce / 4
+		stalled  = testDebounce / 2
+		attempts = 5
+	)
+	for attempt := 1; ; attempt++ {
+		reportedAt, longest := writeBurst(t, w, path, step)
+		if reportedAt < 0 {
+			break
+		}
+		if longest < stalled {
+			t.Fatalf("reported during the burst, after write %d (longest gap between writes %v, debounce %v)",
+				reportedAt, longest, testDebounce)
+		}
+		if attempt == attempts {
+			t.Fatalf("no burst in %d attempts kept its writes within %v of each other; last gap %v",
+				attempts, stalled, longest)
+		}
+		t.Logf("attempt %d: writes stalled for %v, longer than the burst allows; trying again", attempt, longest)
+		// Let the discarded burst report and go quiet before the next.
+		drain(w)
+	}
+	expectEvent(t, w, "burst")
+}
+
+// writeBurst writes to path 12 times, step apart. It returns the write
+// after which the watcher reported, or -1 when it stayed quiet through
+// the burst, and the longest time the test let pass between two writes
+// up to that point.
+func writeBurst(t *testing.T, w *Watcher, path string, step time.Duration) (reportedAt int, longest time.Duration) {
+	t.Helper()
+	var last time.Time
+	gap := func() {
+		if d := time.Since(last); !last.IsZero() && d > longest {
+			longest = d
+		}
+	}
 	for i := 0; i < 12; i++ {
+		gap()
+		last = time.Now()
 		write(t, path, string(rune('a'+i)))
 		select {
 		case <-w.Events():
-			t.Fatalf("reported during the burst, after write %d", i)
+			gap()
+			return i, longest
 		case <-time.After(step):
 		}
 	}
-	expectEvent(t, w, "burst")
+	return -1, longest
+}
+
+// drain waits until the watcher has been quiet for quietFor, taking
+// whatever it reports meanwhile.
+func drain(w *Watcher) {
+	for {
+		select {
+		case <-w.Events():
+		case <-time.After(quietFor):
+			return
+		}
+	}
 }
 
 func TestUnwatchedDirIsIgnored(t *testing.T) {
