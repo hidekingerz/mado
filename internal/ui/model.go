@@ -147,6 +147,9 @@ type Model struct {
 	// search is the find-by-name / find-in-files panel.
 	search searchState
 
+	// links is the panel that lists the active tab's local links.
+	links linksState
+
 	// settings is the panel that edits the config in place.
 	settings settingsState
 
@@ -273,6 +276,7 @@ func (m *Model) handleRemote(req *remote.Request) {
 		// on screen before.
 		m.showHelp = false
 		m.closeSearch()
+		m.closeLinks()
 		m.closeSettings()
 		m.focus = focusContent
 		req.Respond(nil)
@@ -282,6 +286,7 @@ func (m *Model) handleRemote(req *remote.Request) {
 				m.active = i
 				m.showHelp = false
 				m.closeSearch()
+				m.closeLinks()
 				m.closeSettings()
 				m.focus = focusContent
 				m.ensureRendered(t)
@@ -417,6 +422,9 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.search.open && (msg.Text != "" || !key.Matches(msg, k.Quit)) {
 		return m.handleSearchKey(msg)
 	}
+	if m.links.open {
+		return m.handleLinksKey(msg)
+	}
 	switch {
 	case key.Matches(msg, k.Quit):
 		return m, m.quit()
@@ -527,6 +535,8 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		m.notice = m.text.CopiedPath
 		return m, copyToClipboard(t.path)
+	case key.Matches(msg, k.Links):
+		m.openLinks()
 	}
 	return m, nil
 }
@@ -537,6 +547,9 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	}
 	if m.search.open {
 		return m.handleSearchMouse(msg)
+	}
+	if m.links.open {
+		return m.handleLinksMouse(msg)
 	}
 	at := msg.Mouse()
 	inSidebar := m.sidebar && at.X < m.sidebarWidth()
@@ -789,6 +802,7 @@ func (m *Model) reload() {
 		t.rendered = 0
 	}
 	m.ensureRendered(active)
+	m.refreshLinks()
 }
 
 // ensureRendered (re-)renders a tab's content at the current viewport
@@ -1003,6 +1017,7 @@ func (m *Model) layoutTabs() {
 	m.clampTree()
 	m.scrollCursorIntoView()
 	m.clampSearch()
+	m.clampLinks()
 	m.clampSettings()
 }
 

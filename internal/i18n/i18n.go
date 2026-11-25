@@ -59,7 +59,7 @@ type Text struct {
 	KeyTop, KeyBottom, KeyReload, KeyToggleMode         string
 	KeyToggleAllFiles, KeyToggleHidden, KeyToggleLineNo string
 	KeyCopyPath, KeySearch, KeySearchContent            string
-	KeySettings, KeyHelp                                string
+	KeySettings, KeyHelp, KeyLinks                      string
 
 	// Help screen.
 	HelpTitle, HelpSearch, HelpMouse string
@@ -84,6 +84,9 @@ type Text struct {
 	Searching, NoMatches, OneMatch                string
 	MatchesF, MatchesMoreF                        string // count
 	SettingsTitle, PressAKey, Empty, DefaultLabel string
+	LinksTitle, NoLinks, LinkMissing, OneLink     string
+	LinksF                                        string // count
+	LinksBarHint                                  string
 
 	// Settings panel hints in the status bar.
 	HintApply, HintCapturing, HintPick, HintClose, HintUndo string
@@ -113,6 +116,7 @@ var en = Text{
 	KeyToggleHidden: "show / hide dotfiles", KeyToggleLineNo: "line numbers",
 	KeyCopyPath: "copy file path", KeySearch: "search file names",
 	KeySearchContent: "search file contents", KeySettings: "settings", KeyHelp: "toggle help",
+	KeyLinks: "open a link in the file",
 
 	HelpTitle:  "Keyboard shortcuts",
 	HelpSearch: "Search: type to filter, tab switches names/contents,\n↑/↓ select, enter opens, esc closes.",
@@ -155,6 +159,12 @@ var en = Text{
 	PressAKey:          "press a key…",
 	Empty:              "(empty)",
 	DefaultLabel:       "default: ",
+	LinksTitle:         "Links",
+	NoLinks:            "no local links in this file",
+	LinkMissing:        "not found",
+	OneLink:            "1 link",
+	LinksF:             "%d links",
+	LinksBarHint:       "enter open │ esc close ",
 
 	HintApply:     "enter apply │ esc cancel ",
 	HintCapturing: "press a key │ ctrl+c quit ",
@@ -177,6 +187,7 @@ var ja = Text{
 	KeyToggleHidden: "ドットファイルの表示切替", KeyToggleLineNo: "行番号",
 	KeyCopyPath: "ファイルのパスをコピー", KeySearch: "ファイル名で検索",
 	KeySearchContent: "内容で検索", KeySettings: "設定", KeyHelp: "ヘルプの表示切替",
+	KeyLinks: "ファイル内のリンクを開く",
 
 	HelpTitle:  "キー操作",
 	HelpSearch: "検索: 入力で絞り込み、tab で名前 / 内容を切替、\n↑/↓ で選択、enter で開く、esc で閉じる。",
@@ -219,6 +230,12 @@ var ja = Text{
 	PressAKey:          "キーを押してください…",
 	Empty:              "（空）",
 	DefaultLabel:       "既定値: ",
+	LinksTitle:         "リンク",
+	NoLinks:            "このファイルにローカルリンクはありません",
+	LinkMissing:        "見つかりません",
+	OneLink:            "1 件",
+	LinksF:             "%d 件",
+	LinksBarHint:       "enter 開く │ esc 閉じる ",
 
 	HintApply:     "enter 適用 │ esc 取消 ",
 	HintCapturing: "キーを押す │ ctrl+c 終了 ",
@@ -268,6 +285,7 @@ var ja = Text{
 		"keys.toggle_hidden":       "ドットファイルの表示 / 非表示",
 		"keys.toggle_line_numbers": "source 表示の行番号",
 		"keys.copy_path":           "開いているファイルの絶対パスをコピー",
+		"keys.links":               "開いているファイルのローカルリンクを一覧して開く",
 		"keys.search":              "ファイル名で検索",
 		"keys.search_content":      "ファイルの内容で検索",
 		"keys.settings":            "この設定パネルを開く",

@@ -27,6 +27,7 @@ type keyMap struct {
 	ToggleHidden   key.Binding
 	ToggleLineNums key.Binding
 	CopyPath       key.Binding
+	Links          key.Binding
 	Search         key.Binding
 	SearchContent  key.Binding
 	Settings       key.Binding
@@ -58,6 +59,7 @@ func newKeyMap(k config.Keys, t *i18n.Text) keyMap {
 		ToggleHidden:   bind(k.ToggleHidden, t.KeyToggleHidden),
 		ToggleLineNums: bind(k.ToggleLineNums, t.KeyToggleLineNo),
 		CopyPath:       bind(k.CopyPath, t.KeyCopyPath),
+		Links:          bind(k.Links, t.KeyLinks),
 		Search:         bind(k.Search, t.KeySearch),
 		SearchContent:  bind(k.SearchContent, t.KeySearchContent),
 		Settings:       bind(k.Settings, t.KeySettings),

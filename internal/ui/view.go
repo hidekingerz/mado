@@ -188,7 +188,7 @@ func (m Model) renderSidebar() string {
 		text += strings.Repeat(" ", innerW-lipgloss.Width(text))
 
 		switch {
-		case idx == m.cursor && m.focus == focusSidebar && !m.search.open && !m.settings.open:
+		case idx == m.cursor && m.focus == focusSidebar && !m.search.open && !m.links.open && !m.settings.open:
 			text = m.styles.selection.Render(text)
 		case idx == m.cursor:
 			text = m.styles.cursor.Render(text)
@@ -203,7 +203,7 @@ func (m Model) renderSidebar() string {
 	}
 
 	borderColor := m.cfg.Theme.BorderColor
-	if m.focus == focusSidebar && !m.search.open && !m.settings.open {
+	if m.focus == focusSidebar && !m.search.open && !m.links.open && !m.settings.open {
 		borderColor = m.cfg.Theme.AccentColor
 	}
 	return lipgloss.NewStyle().
@@ -226,6 +226,8 @@ func (m Model) renderContent() string {
 		body = m.renderSettings(innerW, innerH)
 	case m.search.open:
 		body = m.renderSearch(innerW, innerH)
+	case m.links.open:
+		body = m.renderLinks(innerW, innerH)
 	case m.showHelp:
 		body = m.renderHelp(innerW, innerH)
 	case len(m.tabs) == 0:
@@ -235,7 +237,7 @@ func (m Model) renderContent() string {
 	}
 
 	borderColor := m.cfg.Theme.BorderColor
-	if m.focus == focusContent || m.search.open || m.settings.open {
+	if m.focus == focusContent || m.search.open || m.links.open || m.settings.open {
 		borderColor = m.cfg.Theme.AccentColor
 	}
 	return lipgloss.NewStyle().
@@ -315,6 +317,7 @@ func (m Model) renderHelp(w, h int) string {
 		{k.ToggleHidden.Help().Key, k.ToggleHidden.Help().Desc},
 		{k.ToggleLineNums.Help().Key, k.ToggleLineNums.Help().Desc},
 		{k.CopyPath.Help().Key, k.CopyPath.Help().Desc},
+		{k.Links.Help().Key, k.Links.Help().Desc},
 		{k.Search.Help().Key, k.Search.Help().Desc},
 		{k.SearchContent.Help().Key, k.SearchContent.Help().Desc},
 		{k.Settings.Help().Key, k.Settings.Help().Desc},
@@ -374,6 +377,9 @@ func (m Model) renderStatusBar() string {
 			// The match count is in the panel's header row already.
 			prefix += "[SEARCH " + strings.ToUpper(m.search.target.String()) + "]  "
 			path = tildePath(m.root.Path)
+		} else if t := m.activeTab(); t != nil && m.links.open {
+			prefix += "[LINKS]  "
+			path = m.displayPath(t.path)
 		} else if t := m.activeTab(); t != nil {
 			label := m.mode.String()
 			if !filetree.IsMarkdown(t.path) {
@@ -402,6 +408,9 @@ func (m Model) renderStatusBar() string {
 	right := m.keys.Help.Help().Key + " " + m.text.BarHelp + " │ " + m.keys.Quit.Help().Key + " " + m.text.BarQuit + " "
 	if m.search.open {
 		right = fmt.Sprintf(m.text.SearchBarHintF, m.targetName(m.search.target.Toggle()))
+	}
+	if m.links.open {
+		right = m.text.LinksBarHint
 	}
 	if m.settings.open {
 		right = m.settingsHint()

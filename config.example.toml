@@ -79,6 +79,9 @@ toggle_all_files = ["a"]     # show all files / markdown only in sidebar
 toggle_hidden = ["."]        # show / hide dotfiles and dot-directories in sidebar
 toggle_line_numbers = ["n"]  # line numbers in source view, like vi's :set nu
 copy_path = ["y"]            # copy the open file's absolute path to the clipboard
+links = ["o"]                # list the open file's local links and open one
+# Inside the links panel: up/down (and the up/down keys above) move,
+# enter (or an open key) follows the link, esc closes.
 search = ["/"]               # find files by name
 search_content = ["ctrl+f"]  # find files by content
 # Inside the search prompt the keys are fixed: typed characters edit

@@ -63,6 +63,7 @@ func (m *Model) openSettings() {
 		return
 	}
 	m.closeSearch()
+	m.closeLinks()
 	m.showHelp = false
 	s := &m.settings
 	s.open = true
